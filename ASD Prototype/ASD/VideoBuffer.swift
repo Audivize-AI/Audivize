@@ -250,8 +250,8 @@ extension ASD {
                                             rowBytes: outStride)
             err = vImageConvert_Planar8toPlanarF(&gray8Buffer,
                                                  &grayFBuffer,
-                                                 255.0,  // scale
-                                                 0.0,    // bias
+                                                 5.92417061611,  // scale
+                                                 -2.46504739336,    // bias
                                                  vImage_Flags(kvImageNoFlags))
             guard err == kvImageNoError else {
                 throw ImageProcessingError.convertFailed(err)

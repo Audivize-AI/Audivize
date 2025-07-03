@@ -21,8 +21,8 @@ extension ASD {
         init(atTime time: Double,
              onFused: @Sendable @escaping ([SendableSpeaker]) async -> Void,
              onMerge: @Sendable @escaping (MergeRequest) -> Void = { _ in },
-             numModels: Int = 6,
-             videoBufferPadding: Int = 25,
+             numModels: Int = 8,
+             videoBufferPadding: Int = 49,
              scoreBufferPadding: Int = 25)
         {
             self.videoProcessor = .init(atTime: time,
@@ -54,7 +54,7 @@ extension ASD {
             let callback = self.onFused
             let modelPool = self.modelPool
             
-            Task.detached {
+            Task.detached(priority: .userInitiated) {
                 if isVideoUpdate {
                     // tracking and video buffer update
                     let speakers = await videoProcessor.updateVideosAndGetSpeakers(atTime: time, from: pixelBuffer, connection: connection)
@@ -64,7 +64,6 @@ extension ASD {
                     // tracking update
                     let videoInputs = await videoProcessor.updateTracksAndGetFrames(atTime: time, from: pixelBuffer, connection: connection)
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
-                    
                     // ASD update
                     let scores: [UUID: MLMultiArray] = try await withThrowingTaskGroup(of: (UUID, MLMultiArray).self) { group in
                         for (id, videoInput) in videoInputs {
@@ -85,7 +84,6 @@ extension ASD {
                         
                         return results
                     }
-                    
                     let res = await videoProcessor.updateScoresAndGetSpeakers(atTime: time, with: scores)
                     await callback(res)
                 }

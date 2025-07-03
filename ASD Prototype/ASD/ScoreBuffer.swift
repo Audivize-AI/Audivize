@@ -89,10 +89,9 @@ extension ASD {
                     Utils.advance_index(&i, by: 1, modulo: self.bufferSize)
                 }
                 for score in ptr[source.count-numNew..<source.count] {
-                    self.buffer[i].reset(to: score)
-                    Utils.advance_index(&i, by: 1, modulo: self.bufferSize)
+                    self.buffer[self.writeIndex].reset(to: score)
+                    Utils.advance_index(&self.writeIndex, by: 1, modulo: self.bufferSize)
                 }
-                self.writeIndex = i
             }
         }
         

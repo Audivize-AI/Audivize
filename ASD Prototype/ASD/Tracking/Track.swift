@@ -7,6 +7,7 @@
 
 import CoreML
 import Foundation
+import Atomics
 
 extension ASD.Tracking {
     final class Track:
@@ -52,6 +53,7 @@ extension ASD.Tracking {
         public private(set) var embedding: MLMultiArray
         public private(set) var averageAppearanceCost: Float
         public private(set) var isPermanent: Bool = false
+        public private(set) var expectedConfidence: Float = 0.0
         
         // MARK: public computed properties
         public var isDeletable: Bool {
@@ -68,11 +70,14 @@ extension ASD.Tracking {
         
         // MARK: private properties
         
+        nonisolated(unsafe) private static var numTracks: Int = 0
+        
         private let configuration: TrackConfiguration
         private let kalmanFilter: VisualKF
-        private let maxAppearanceCost: Float
         
         private var iterationsUntilEmbeddingUpdate: Int
+        private var lastConfidence: Float?
+        private var lastConfidence2: Float?
         
         // MARK: constructors
         
@@ -87,10 +92,13 @@ extension ASD.Tracking {
             }
             self.embedding = embedding
             self.kalmanFilter = VisualKF(initialObservation: detection.rect)
-            self.maxAppearanceCost = costConfiguration.maxAppearanceCost
             self.averageAppearanceCost = costConfiguration.maxAppearanceCost / 2 // conservative estimate
             self.iterationsUntilEmbeddingUpdate = trackConfiguration.iterationsPerEmbeddingUpdate
             self.configuration = trackConfiguration
+            self.lastConfidence = detection.confidence
+            self.expectedConfidence = detection.confidence
+            Track.numTracks += 1
+            print("Track \(self.id) initialized. Total tracks: \(Track.numTracks)")
         }
         
         /// Permanent track constructor
@@ -107,16 +115,25 @@ extension ASD.Tracking {
             self.embedding = embedding
             self.kalmanFilter = VisualKF(initialObservation: detection?.rect ?? .zero)
             self.averageAppearanceCost = costConfiguration.maxAppearanceCost / 2
-            self.maxAppearanceCost = costConfiguration.maxAppearanceCost
             self.iterationsUntilEmbeddingUpdate = trackConfiguration.iterationsPerEmbeddingUpdate
             self.configuration = trackConfiguration
             self.isPermanent = true
             if let detection = detection {
+                self.expectedConfidence = detection.confidence
+                self.lastConfidence = detection.confidence
                 self.status = .active
                 self.updateEmbedding(detection: detection, appearanceCost: self.cosineDistance(to: detection))
             } else {
                 self.status = .inactive
+                self.expectedConfidence = 0
             }
+            Track.numTracks += 1
+            print("Track \(self.id) initialized. Total tracks: \(Track.numTracks)")
+        }
+        
+        deinit {
+            Track.numTracks -= 1
+            print("Track \(self.id) deinitialized. Total tracks: \(Track.numTracks)")
         }
         
         
@@ -183,6 +200,14 @@ extension ASD.Tracking {
             // update state
             self.kalmanFilter.update(measurement: detection.rect)
             
+            // update confidence
+            self.lastConfidence2 = self.lastConfidence
+            self.lastConfidence = detection.confidence
+            
+            if let lastConfidence2 = self.lastConfidence2, let lastConfidence = self.lastConfidence {
+                self.expectedConfidence = lastConfidence - (lastConfidence2 - lastConfidence)
+            }
+            
             /*  If the appearance cost was calculated then the detection's embedding must   *
              *  have also been computed. This is because the embedding is necessary to      *
              *  compute the appearance cost. Also, don't update embedding when inactive.    */
@@ -221,7 +246,7 @@ extension ASD.Tracking {
         @inline(__always)
         func cosineDistance(to detection: Detection) -> Float {
             if let detectionEmbedding = detection.embedding {
-                return Utils.ML.cosineDistance(a: self.embedding, b: detectionEmbedding)
+                return Utils.ML.cosineDistance(from: self.embedding, to: detectionEmbedding)
             }
             // return the maximum value of cosine distance
             return 2.0
@@ -235,6 +260,16 @@ extension ASD.Tracking {
             return Utils.iou(self.kalmanFilter.rect, detection.rect)
         }
         
+        @inline(__always)
+        func confidenceCost(for detection: Detection) -> Float {
+            return abs(self.expectedConfidence - detection.confidence)
+        }
+        
+        @inline(__always)
+        func velocityCost(for detection: Detection) -> Float {
+            return self.kalmanFilter.velocityCost(to: detection.rect)
+        }
+        
         func hash(into hasher: inout Hasher) {
             hasher.combine(id)
         }
@@ -243,8 +278,18 @@ extension ASD.Tracking {
         /// - Parameter detection: detection object that was assigned to this track
         /// - Parameter appearanceCost: appearance cost of the assignment
         func updateEmbedding(detection: Detection, appearanceCost: Float) {
-            guard let newEmbedding = detection.embedding else { return }
-            let alpha = self.configuration.embeddingAlpha * detection.confidence * exp(-appearanceCost / (self.averageAppearanceCost + 1e-10))
+            if detection.confidence < self.configuration.embeddingConfidenceThreshold {
+                return
+            }
+            guard let newEmbedding = detection.embedding else {
+                return
+            }
+            
+            let alphaF = self.configuration.embeddingAlpha
+            let sDet = detection.confidence
+            let sigma = self.configuration.embeddingConfidenceThreshold
+            
+            let alpha = alphaF + (1 - alphaF) * (1 - (sDet - sigma) / (1 - sigma))
             self.averageAppearanceCost += (appearanceCost - self.averageAppearanceCost) * alpha
             Utils.ML.updateEMA(ema: self.embedding, with: newEmbedding, alpha: alpha)
             self.iterationsUntilEmbeddingUpdate = self.configuration.iterationsPerEmbeddingUpdate

@@ -76,6 +76,14 @@ class DrawingView: UIView {
         
         context.setLineWidth(3)
         
+        struct Caption {
+            let text: NSString
+            let position: CGPoint
+            let attributes: [NSAttributedString.Key: Any]
+        }
+        
+        var captions: [Caption] = []
+        
         for face in faces {
             if face.status == .active {
                 if face.misses > 0 {
@@ -93,7 +101,7 @@ class DrawingView: UIView {
                 context.setLineWidth(3)
             }
             let box = face.rect
-//            print("\(Date().timeIntervalSince1970 - self.startTime),\(box.midX),\(box.midY),\(box.width * box.height),\(box.width / box.height)")
+            // print("\(Date().timeIntervalSince1970 - self.startTime),\(box.midX),\(box.midY),\(box.width * box.height),\(box.width / box.height)")
             // Here, self.bounds is the frame of this view, which is sized to match the preview layer.
             
             
@@ -119,8 +127,7 @@ class DrawingView: UIView {
                 x: flippedRect.origin.x,
                 y: flippedRect.origin.y - textSize.height - 2 // small gap above box
             )
-
-            idText.draw(at: textOrigin, withAttributes: attributes)
+            captions.append(.init(text: idText, position: textOrigin, attributes: attributes))
             
             let rectPath = CGPath(rect: flippedRect, transform: nil)
             cutout = cutout.union(rectPath)
@@ -130,7 +137,11 @@ class DrawingView: UIView {
         context.addPath(blackoutPath)
         context.setFillColor(UIColor.black.cgColor)
         context.setBlendMode(.normal)
-        //context.drawPath(using: .eoFill)
+        context.drawPath(using: .eoFill)
+        
+        for caption in captions {
+            caption.text.draw(at: caption.position, withAttributes: caption.attributes)
+        }
     }
 }
 

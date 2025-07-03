@@ -168,7 +168,7 @@ extension ASD.Tracking {
             
             // assign inactive tracks
             progress.tracks = self.inactiveTracks
-            self.applyInitialCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff)
+            self.applyInitialCostFilter(&progress, costFunction: self.meetsReIDCostCutoff)
             self.assignWithRLAP(&progress)
             self.registerMisses(&progress, tracks: &self.inactiveTracks, trackStatus: .inactive)
                 
@@ -180,6 +180,11 @@ extension ASD.Tracking {
             for track in progress.tracks {
                 self.pendingTracks.remove(track)
             }
+            
+            print("\n-----------------------------------------------------------------\n")
+            print("active:\t\(self.activeTracks.map{$0.id.uuidString.prefix(4)})")
+            print("inactive:\t\(self.inactiveTracks.map{$0.id.uuidString.prefix(4)})")
+            print("pending:\t\(self.pendingTracks.map{$0.id.uuidString.prefix(4)})")
         }
         
         @inline(__always)
@@ -189,8 +194,16 @@ extension ASD.Tracking {
         }
         
         @inline(__always)
+        private func meetsReIDCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
+            costs.appearance = track.cosineDistance(to: detection)
+            return costs.appearance <= self.costConfiguration.maxReIDCost
+        }
+        
+        @inline(__always)
         private func meetsMotionCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
             costs.iou = track.iou(with: detection)
+            costs.confidence = track.confidenceCost(for: detection)
+            costs.ocm = track.velocityCost(for: detection)
             return costs.iou >= self.costConfiguration.minIou
         }
         
@@ -199,10 +212,17 @@ extension ASD.Tracking {
             if costs.iou == Float.infinity {
                 return costs.appearance
             }
+            assert(costs.ocm.isFinite)
+            assert(costs.confidence.isFinite)
             if costs.appearance == Float.infinity {
-                return costs.iou
+                return (1 - costs.iou +
+                            costs.ocm * self.costConfiguration.ocmWeight +
+                            costs.confidence * self.costConfiguration.confidenceWeight)
             }
-            return costConfiguration.motionWeight * costs.iou + (1.0 - costConfiguration.motionWeight) * costs.appearance
+            return (1 - costs.iou +
+                        costs.appearance * self.costConfiguration.appearanceWeight +
+                        costs.ocm * self.costConfiguration.ocmWeight +
+                        costs.confidence * self.costConfiguration.confidenceWeight)
         }
         
         /// Looks at all possible (Track, Detection) pairings and determines which ones meet the cost cutoffs.
@@ -415,14 +435,14 @@ extension ASD.Tracking {
         @discardableResult
         private func mergeInactiveTrack(_ track: Track, tracks: [Track]) -> Bool {
             var bestMatch: Track?
-            var minCost: Float = self.costConfiguration.maxAppearanceCost.nextUp
+            var minCost: Float = self.costConfiguration.maxReIDCost.nextUp
             
             for other in tracks {
                 if other == track {
                     continue
                 }
                 
-                let cost = Utils.ML.cosineDistance(a: track.embedding, b: other.embedding)
+                let cost = Utils.ML.cosineDistance(from: track.embedding, to: other.embedding)
                 if cost < minCost {
                     bestMatch = other
                     minCost = cost
@@ -431,10 +451,10 @@ extension ASD.Tracking {
             
             if let targetID = bestMatch?.id {
                 self.mergeTracks(.init(from: track.id, into: targetID))
-                print("merged \(track.id) into \(bestMatch!.id)")
+                //print("merged \(track.id) into \(bestMatch!.id)")
                 return true
             }
-            print("deleted inactive track \(track.id)")
+            //print("deleted inactive track \(track.id)")
             return false
         }
     }

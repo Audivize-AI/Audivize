@@ -124,17 +124,36 @@ extension ASD.Tracking {
             }
         }
         
-        private var dt: Float
+        public var velocityDirection: Float {
+            if let last = lastPosition3 ?? lastPosition2 {
+                let deltaPosition = self.lastMeasurement.lowHalf - last
+                return atan2f(deltaPosition.y, deltaPosition.x)
+            }
+            return .infinity
+        }
         
-        init(initialObservation: CGRect, dt: Float = 1.0/30.0) {
-            self.dt = dt
+        private var lastMeasurement: SIMD4<Float>
+        private var lastObservedState: Matrix<Float>
+        private var lastObservedCovariance: Matrix<Float>
+        private var lastMeasurementTime: UInt = 0
+        private var lastPosition2: SIMD2<Float>?
+        private var lastPosition3: SIMD2<Float>?
+        private var currentTime: UInt = 0
+        
+        private var lastN: SIMD2<Float>? { lastPosition3 ?? lastPosition2 }
+        
+        init(initialObservation: CGRect) {
+            self.lastMeasurementTime = 0
+            self.lastObservedState = Matrix<Float>.zero
+            self.lastObservedCovariance = Matrix<Float>.zero
+            self.lastMeasurement = VisualKF.convertRectToVector(initialObservation)
             
             super.init(
                 x: VisualKF.convertRectToMeasurement(initialObservation) + [0, 0, 0],
                 A: Matrix(rows: [
-                    [1, 0, 0, 0, dt, 0, 0],
-                    [0, 1, 0, 0, 0, dt, 0],
-                    [0, 0, 1, 0, 0, 0, dt],
+                    [1, 0, 0, 0, 1, 0, 0],
+                    [0, 1, 0, 0, 0, 1, 0],
+                    [0, 0, 1, 0, 0, 0, 1],
                     [0, 0, 0, 1, 0, 0, 0],
                     [0, 0, 0, 0, 1, 0, 0],
                     [0, 0, 0, 0, 0, 1, 0],
@@ -158,7 +177,20 @@ extension ASD.Tracking {
                     [-1.32603707e-06, -2.87047903e-07, -1.23742312e-06,  2.64800784e-04]
                 ])
             )
+            
+            self.lastObservedState = self.x
+            self.lastObservedCovariance = self.P
         }
+        
+        /* OLD Q
+         [1, 0, 0, 0, 0, 0, 0],
+         [0, 1, 0, 0, 0, 0, 0],
+         [0, 0, 1, 0, 0, 0, 0],
+         [0, 0, 0, 1, 0, 0, 0],
+         [0, 0, 0, 0, 0.01, 0, 0],
+         [0, 0, 0, 0, 0, 0.01, 0],
+         [0, 0, 0, 0, 0, 0, 0.001],
+         */
         
         static func convertRectToMeasurement(_ rect: CGRect) -> [Float] {
             return [
@@ -169,15 +201,72 @@ extension ASD.Tracking {
             ]
         }
         
+        static func convertRectToVector(_ rect: CGRect) -> SIMD4<Float> {
+            return .init(
+                x: Float(rect.midX),
+                y: Float(rect.midY),
+                z: Float(rect.width * rect.height),
+                w: Float(rect.width / rect.height),
+            )
+        }
+        
         override func predict() {
-            self.xPosition += self.dt * self.xVelocity
-            self.yPosition += self.dt * self.yVelocity
-            self.scale += self.dt * self.growthRate
+            self.xPosition += self.xVelocity
+            self.yPosition += self.yVelocity
+            self.scale += self.growthRate
             self.updateCovariancePredict()
         }
         
         func update(measurement: CGRect) {
-            super.update(measurement: VisualKF.convertRectToMeasurement(measurement))
+            self.currentTime += 1
+            let dt = self.currentTime - self.lastMeasurementTime
+            if dt != 1 {
+                self.x = self.lastObservedState
+                self.P = self.lastObservedCovariance
+                let step = (VisualKF.convertRectToVector(measurement) - self.lastMeasurement) * (1 / Float(self.currentTime - self.lastMeasurementTime))
+                for i in (self.lastMeasurementTime+1)..<self.currentTime {
+                    self.lastMeasurement += step
+                    self.predict()
+                    super.update(measurement: Matrix<Float>(self.lastMeasurement))
+                    if i == self.currentTime - 2 {
+                        self.lastPosition2 = self.lastMeasurement.lowHalf
+                    } else if i == self.currentTime - 3 {
+                        self.lastPosition3 = self.lastMeasurement.lowHalf
+                    }
+                }
+                self.predict()
+            } else {
+                self.lastPosition3 = self.lastPosition2
+                self.lastPosition2 = self.lastMeasurement.lowHalf
+            }
+            
+            self.lastMeasurement = VisualKF.convertRectToVector(measurement)
+            super.update(measurement: Matrix<Float>(self.lastMeasurement))
+            
+            self.lastObservedState = self.x
+            self.lastObservedCovariance = self.P
+            self.lastMeasurementTime = self.currentTime
+        }
+        
+        public func deactivate() {
+            self.lastPosition3 = nil
+            self.lastPosition2 = nil
+            self.lastMeasurementTime = 0
+            self.currentTime = 0
+            self.growthRate = 0
+            self.xVelocity = 0
+            self.yVelocity = 0
+        }
+        
+        public func velocityCost(to rect: CGRect) -> Float {
+            if let last = self.lastN {
+                let thetaTrack = atan2f(self.lastMeasurement.y - last.y,
+                                        self.lastMeasurement.x - last.x)
+                let thetaIntention = atan2f(Float(rect.midY) - last.y,
+                                       Float(rect.midX) - last.x)
+                return abs(thetaTrack - thetaIntention)
+            }
+            return .infinity
         }
     }
     
@@ -237,8 +326,13 @@ extension ASD.Tracking {
             self.P = self.A * self.P * self.A.transpose + self.Q
         }
         
+        @inline(__always)
         public func update(measurement z: Vector<Float>) {
-            let y = Matrix<Float>(z) - (self.H * self.x)
+            self.update(measurement: Matrix<Float>(z))
+        }
+        
+        public func update(measurement z: Matrix<Float>) {
+            let y = z - (self.H * self.x)
             let S = self.H * self.P * self.H.transpose + self.R
             guard let SInv = S.inverse else { return }
             let K = self.P * self.H.transpose * SInv
@@ -256,8 +350,18 @@ extension ASD.Tracking {
             self.update(measurement: z)
         }
         
-        public func step(input u: Vector<Float>, measurement z: Vector<Float>) {
+        public func step(measurement z: Matrix<Float>) {
             self.predict()
+            self.update(measurement: z)
+        }
+        
+        public func step(input u: Vector<Float>, measurement z: Vector<Float>) {
+            self.predict(input: u)
+            self.update(measurement: z)
+        }
+        
+        public func step(input u: Vector<Float>, measurement z: Matrix<Float>) {
+            self.predict(input: u)
             self.update(measurement: z)
         }
     }
