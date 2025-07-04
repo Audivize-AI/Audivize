@@ -67,11 +67,9 @@ extension ASD {
         
         // MARK: Updater methods
         
-        public func updateVideosAndGetSpeakers(atTime time: Double, from pixelBuffer: CVPixelBuffer, connection: AVCaptureConnection) -> [SendableSpeaker] {
+        public func updateVideosAndGetSpeakers(atTime time: Double, from pixelBuffer: CVPixelBuffer, mirrored: Bool) -> [SendableSpeaker] {
             // get tracks
-            let orientation = Utils.Images.cgImageOrientation(fromRotationAngle: connection.videoRotationAngle,
-                                                              mirrored: connection.isVideoMirrored)
-            let tracks = tracker.update(pixelBuffer: pixelBuffer, orientation: orientation)
+            let tracks = tracker.update(pixelBuffer: pixelBuffer)
             
             var output: [SendableSpeaker] = []
             output.reserveCapacity(tracks.count)
@@ -82,7 +80,8 @@ extension ASD {
                     .updateVideoAndGetLastScore(atTime: time, from: pixelBuffer, with: track)
                 
                 output.append(.init(track: track,
-                                    score: score))
+                                    score: score,
+                                    mirrored: mirrored))
             }
             
             self.videoTracks = self.videoTracks.filter { _, videoTrack in
@@ -92,11 +91,9 @@ extension ASD {
             return output
         }
         
-        public func updateTracksAndGetFrames(atTime time: Double, from pixelBuffer: CVPixelBuffer, connection: AVCaptureConnection) -> [UUID : MLMultiArray] {
+        public func updateTracksAndGetFrames(atTime time: Double, from pixelBuffer: CVPixelBuffer) -> [UUID : MLMultiArray] {
             // get tracks
-            let orientation = Utils.Images.cgImageOrientation(fromRotationAngle: connection.videoRotationAngle,
-                                                              mirrored: connection.isVideoMirrored)
-            let tracks = self.tracker.update(pixelBuffer: pixelBuffer, orientation: orientation)
+            let tracks = self.tracker.update(pixelBuffer: pixelBuffer)
             
             var updatedFrames: [UUID : MLMultiArray] = [:]
             updatedFrames.reserveCapacity(tracks.count)
@@ -114,7 +111,7 @@ extension ASD {
             return updatedFrames
         }
         
-        public func updateScoresAndGetSpeakers(atTime time: Double, with scores: [UUID : MLMultiArray]) -> [SendableSpeaker] {
+        public func updateScoresAndGetSpeakers(atTime time: Double, with scores: [UUID : MLMultiArray], mirrored: Bool) -> [SendableSpeaker] {
             var output: [SendableSpeaker] = []
             output.reserveCapacity(self.videoTracks.count)
             
@@ -122,7 +119,8 @@ extension ASD {
                 if let videoTrack = self.videoTracks[id] {
                     videoTrack.scoreBuffer.write(from: score, count: 5)
                     output.append(.init(track: videoTrack.track,
-                                        score: videoTrack.scoreBuffer[-1]))
+                                        score: videoTrack.scoreBuffer[-1],
+                                        mirrored: mirrored))
                 }
             }
             

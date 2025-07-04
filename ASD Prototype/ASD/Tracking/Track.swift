@@ -68,6 +68,14 @@ extension ASD.Tracking {
             return self.kalmanFilter.rect
         }
         
+        public var stringValue: String {
+            return "Track \(self.id)"
+        }
+        
+        public var shortString: String {
+            return String(self.id.uuidString.prefix(4))
+        }
+        
         // MARK: private properties
         
         nonisolated(unsafe) private static var numTracks: Int = 0
@@ -187,7 +195,7 @@ extension ASD.Tracking {
                 
                 if self.hits >= threshold {
                     if status.isInactive {
-                        self.kalmanFilter.rect = detection.rect
+                        self.kalmanFilter.activate(detection.rect)
                     }
                     
                     self.status = .active
@@ -222,16 +230,15 @@ extension ASD.Tracking {
         func registerMiss() {
             if self.status.isActive {
                 self.hits -= 1
-                if self.hits <= -self.configuration.deactivationThreshold {
+                if self.hits <= -self.configuration.deactivationThreshold || !self.kalmanFilter.isValid {
+                    print("deactivating track: \(self.id.uuidString.prefix(4))")
                     self.status = .inactive
-                    self.kalmanFilter.xVelocity = 0
-                    self.kalmanFilter.yVelocity = 0
-                    self.kalmanFilter.growthRate = 0
+                    self.kalmanFilter.deactivate()
                     self.hits = 0
                 } else {
-                    self.kalmanFilter.xVelocity *= self.configuration.velocityDamping
-                    self.kalmanFilter.yVelocity *= self.configuration.velocityDamping
-                    self.kalmanFilter.growthRate *= self.configuration.growthDamping
+//                    self.kalmanFilter.xVelocity *= self.configuration.velocityDamping
+//                    self.kalmanFilter.yVelocity *= self.configuration.velocityDamping
+//                    self.kalmanFilter.growthRate *= self.configuration.growthDamping
                 }
             } else if self.status.isInactive {
                 self.hits -= 1
@@ -257,6 +264,7 @@ extension ASD.Tracking {
         /// - Returns: intersection over union of the track's rect with `detection`'s rect
         @inline(__always)
         func iou(with detection: Detection) -> Float {
+            print("x: \(self.kalmanFilter.rect.midX), y: \(self.kalmanFilter.rect.midY), Area: \(self.kalmanFilter.scale), Aspect ratio: \(self.kalmanFilter.aspectRatio)")
             return Utils.iou(self.kalmanFilter.rect, detection.rect)
         }
         
@@ -289,7 +297,9 @@ extension ASD.Tracking {
             let sDet = detection.confidence
             let sigma = self.configuration.embeddingConfidenceThreshold
             
-            let alpha = alphaF + (1 - alphaF) * (1 - (sDet - sigma) / (1 - sigma))
+            var alpha = alphaF + (1 - alphaF) * (1 - (sDet - sigma) / (1 - sigma))
+            alpha *= exp(-appearanceCost / (self.averageAppearanceCost + 1e-10))
+            
             self.averageAppearanceCost += (appearanceCost - self.averageAppearanceCost) * alpha
             Utils.ML.updateEMA(ema: self.embedding, with: newEmbedding, alpha: alpha)
             self.iterationsUntilEmbeddingUpdate = self.configuration.iterationsPerEmbeddingUpdate

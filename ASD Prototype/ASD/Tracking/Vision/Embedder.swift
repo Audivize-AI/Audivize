@@ -52,7 +52,7 @@ extension ASD.Tracking {
         }
         
         @discardableResult
-        func embed(faces rects: [CGRect], in pixelBuffer: CVPixelBuffer, orientation: CGImagePropertyOrientation) -> [MLMultiArray] {
+        func embed(faces rects: [CGRect], in pixelBuffer: CVPixelBuffer) -> [MLMultiArray] {
             self.refreshRequests(num: rects.count)
             
             let bufferWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
@@ -81,7 +81,7 @@ extension ASD.Tracking {
             
             let usedRequests = Array(self.requests[0..<rects.count])
             
-            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation)
+            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer)
             
             do {
                 try handler.perform(usedRequests)

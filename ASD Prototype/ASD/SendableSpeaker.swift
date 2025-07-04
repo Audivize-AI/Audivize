@@ -27,9 +27,19 @@ extension ASD {
         
         var string: String { "ID: \(id.uuidString)\n\(self.costString)\nScore: \(score)" }
         
-        init(track: Tracking.SendableTrack, score: Float, rect: CGRect? = nil) {
+        init(track: Tracking.SendableTrack, score: Float, mirrored: Bool, rect: CGRect? = nil) {
             self.id = track.id
-            self.rect = rect ?? track.rect
+            let rect = rect ?? track.rect
+            if mirrored {
+                self.rect = rect
+            } else {
+                self.rect = CGRect(
+                    x: 1 - rect.maxX,
+                    y: rect.minY,
+                    width: rect.width,
+                    height: rect.height
+                )
+            }
             self.status = track.status
             self.costString = track.costString
             self.misses = track.misses

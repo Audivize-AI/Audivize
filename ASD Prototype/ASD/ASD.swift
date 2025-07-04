@@ -22,7 +22,7 @@ extension ASD {
              onFused: @Sendable @escaping ([SendableSpeaker]) async -> Void,
              onMerge: @Sendable @escaping (MergeRequest) -> Void = { _ in },
              numModels: Int = 8,
-             videoBufferPadding: Int = 49,
+             videoBufferPadding: Int = 25,
              scoreBufferPadding: Int = 25)
         {
             self.videoProcessor = .init(atTime: time,
@@ -38,7 +38,7 @@ extension ASD {
             }
         }
         
-        public func update(videoSample sampleBuffer: CMSampleBuffer, connection: AVCaptureConnection) throws {
+        public func update(videoSample sampleBuffer: CMSampleBuffer, cameraPosition: AVCaptureDevice.Position, connection: AVCaptureConnection) throws {
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
             CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
             let time = sampleBuffer.presentationTimeStamp.seconds
@@ -54,15 +54,21 @@ extension ASD {
             let callback = self.onFused
             let modelPool = self.modelPool
             
+            let mirrored = connection.isVideoMirrored != (cameraPosition == .back)
+            
             Task.detached(priority: .userInitiated) {
                 if isVideoUpdate {
                     // tracking and video buffer update
-                    let speakers = await videoProcessor.updateVideosAndGetSpeakers(atTime: time, from: pixelBuffer, connection: connection)
+                    let speakers = await videoProcessor.updateVideosAndGetSpeakers(
+                        atTime: time,
+                        from: pixelBuffer,
+                        mirrored: mirrored
+                    )
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
                     await callback(speakers)
                 } else {
                     // tracking update
-                    let videoInputs = await videoProcessor.updateTracksAndGetFrames(atTime: time, from: pixelBuffer, connection: connection)
+                    let videoInputs = await videoProcessor.updateTracksAndGetFrames(atTime: time, from: pixelBuffer)
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
                     // ASD update
                     let scores: [UUID: MLMultiArray] = try await withThrowingTaskGroup(of: (UUID, MLMultiArray).self) { group in
@@ -84,7 +90,11 @@ extension ASD {
                         
                         return results
                     }
-                    let res = await videoProcessor.updateScoresAndGetSpeakers(atTime: time, with: scores)
+                    let res = await videoProcessor.updateScoresAndGetSpeakers(
+                        atTime: time,
+                        with: scores,
+                        mirrored: mirrored
+                    )
                     await callback(res)
                 }
             }

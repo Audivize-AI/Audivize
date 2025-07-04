@@ -13,6 +13,7 @@ import AVFoundation
 // than SwiftUI for this use case because its coordinate system is
 // directly tied to the camera preview layer's frame.
 class DrawingView: UIView {
+    var orientation: CGImagePropertyOrientation
     var faces: [ASD.SendableSpeaker] = [] {
         // When this property is set, redraw the view.
         didSet {
@@ -29,14 +30,16 @@ class DrawingView: UIView {
     
     var startTime: Double
     
-    init(frame: CGRect, videoSize: CGSize) {
+    init(frame: CGRect, videoSize: CGSize, orientation: CGImagePropertyOrientation) {
         self.startTime = Date().timeIntervalSince1970
+        self.orientation = orientation
         super.init(frame: frame)
         backgroundColor = .clear // Make it transparent
         isOpaque = false
         
         let videoAspectRatio = videoSize.width / videoSize.height
         let frameAspectRatio = self.bounds.width / self.bounds.height
+        print("Bounds: \(self.bounds)")
         
         if (videoAspectRatio > frameAspectRatio) {
             // video is too wide -> fix x-axis
@@ -58,7 +61,10 @@ class DrawingView: UIView {
             )
         }
         
-        self.scale = CGSize(width: self.drawRect.width/* / videoSize.width*/, height: self.drawRect.height/* / videoSize.height*/)
+        self.scale = CGSize(
+            width: self.drawRect.width,
+            height: self.drawRect.height
+        )
         self.videoSize = videoSize
     }
     
@@ -106,9 +112,10 @@ class DrawingView: UIView {
             
             
             // Flip the Y-coordinate because Vision's origin is bottom-left, and UIKit's is top-left.
+
             let flippedRect = CGRect(
-                x: drawRect.origin.x + (1 - box.maxX) * scale.width,
-                y: drawRect.origin.y + (1 - box.maxY) * scale.height,
+                x: drawRect.origin.x + box.minX * scale.width,
+                y: drawRect.origin.y + box.minY * scale.height,
                 width: box.width * scale.width,
                 height: box.height * scale.height
             )
@@ -137,7 +144,7 @@ class DrawingView: UIView {
         context.addPath(blackoutPath)
         context.setFillColor(UIColor.black.cgColor)
         context.setBlendMode(.normal)
-        context.drawPath(using: .eoFill)
+        //context.drawPath(using: .eoFill)
         
         for caption in captions {
             caption.text.draw(at: caption.position, withAttributes: caption.attributes)
@@ -159,7 +166,7 @@ struct CameraPreview: UIViewRepresentable {
         view.layer.addSublayer(previewLayer)
         
         // Setup the drawing layer
-        let drawingView = DrawingView(frame: view.bounds, videoSize: cameraManager.videoSize)
+        let drawingView = DrawingView(frame: view.bounds, videoSize: cameraManager.videoSize, orientation: .leftMirrored)
         print("size: \(cameraManager.videoSize)")
         
         drawingView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -174,8 +181,23 @@ struct CameraPreview: UIViewRepresentable {
     
     func updateUIView(_ uiView: UIView, context: Context) {
         // Update session if it's newly available
+        var orientation: CGImagePropertyOrientation = .leftMirrored
         if context.coordinator.previewLayer?.session == nil, let session = cameraManager.captureSession {
             context.coordinator.previewLayer?.session = session
+            
+            // FIX: Force previewLayer orientation to match
+            if #available(iOS 17.0, *) {
+                if let previewConnection = context.coordinator.previewLayer?.connection,
+                        previewConnection.isVideoRotationAngleSupported(0) {
+                    previewConnection.videoRotationAngle = 0
+                    orientation = Utils.Images.cgImageOrientation(fromRotationAngle: 0, mirrored: true)
+                }
+            } else {
+                if let previewConnection = context.coordinator.previewLayer?.connection,
+                        previewConnection.isVideoOrientationSupported {
+                    previewConnection.videoOrientation = .landscapeLeft
+                }
+            }
         }
         
         // Update layer frames on size change
@@ -184,6 +206,7 @@ struct CameraPreview: UIViewRepresentable {
         
         // Pass the latest bounding boxes to the drawing view
         // The drawingView will automatically redraw itself when this property is set.
+        context.coordinator.drawingView?.orientation = orientation
         context.coordinator.drawingView?.faces = cameraManager.detections
     }
     

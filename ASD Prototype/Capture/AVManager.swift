@@ -25,13 +25,15 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     // AVFoundation properties
     private let videoOutput = AVCaptureVideoDataOutput()
     private let audioOutput = AVCaptureAudioDataOutput()
+    private var videoCaptureDevice: AVCaptureDevice?
+    private var audioCaptureDevice: AVCaptureDevice?
     private let sessionQueue = DispatchQueue(label: "com.facedetector.sessionQueue")
     
     // Vision and Core ML properties
     private var asd: ASD.ASD?
         
     override init() {
-        self.videoSize = CGSize(width: 720, height: 1280)
+        self.videoSize = CGSize(width: 1280, height: 720) // CGSize(width: 720, height: 1280)
         super.init()
         // Asynchronously check permissions and then set up the session
         sessionQueue.async {
@@ -43,7 +45,11 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         do {
-            try self.asd?.update(videoSample: sampleBuffer, connection: connection)
+            try self.asd?.update(
+                videoSample: sampleBuffer,
+                cameraPosition: self.videoCaptureDevice?.position ?? .unspecified,
+                connection: connection
+            )
         } catch {
             print("Video Error: \(error)")
         }
@@ -138,7 +144,9 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     }
     
     private func setupCamera(for session: AVCaptureSession) {
-        guard let videoCaptureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
+        self.videoCaptureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+        
+        guard let videoCaptureDevice = self.videoCaptureDevice else {
             print("Error: No back camera found.")
             return
         }
@@ -168,20 +176,23 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
             // Use the new API on iOS 17 and later
             if #available(iOS 17.0, *) {
                 // To set portrait orientation, we check for and set a 90-degree rotation.
-                if connection.isVideoRotationAngleSupported(90) {
-                    connection.videoRotationAngle = 90
+                if connection.isVideoRotationAngleSupported(0) {
+                    connection.videoRotationAngle = 0
                 }
             } else {
                 // Fallback for earlier iOS versions
                 if connection.isVideoOrientationSupported {
-                    connection.videoOrientation = .portrait
+                    connection.videoOrientation = .landscapeLeft
                 }
             }
         }
     }
     
     private func setupMicrophone(for session: AVCaptureSession) {
-        guard let audioCaptureDevice = AVCaptureDevice.default(for: .audio) else {
+        
+        self.audioCaptureDevice = AVCaptureDevice.default(for: .audio)
+        
+        guard let audioCaptureDevice = self.audioCaptureDevice else {
             print("Error: No microphone found.")
             return
         }

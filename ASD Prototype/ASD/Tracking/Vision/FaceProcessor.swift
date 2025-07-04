@@ -28,14 +28,14 @@ extension ASD.Tracking {
             self.embedder = FaceEmbedder(verbose: verbose, requestLifespan: embedderRequestLifespan, minReadyRequests: minReadyEmbedderRequests)
         }
         
-        public func detect(pixelBuffer: CVPixelBuffer, orientation: CGImagePropertyOrientation) -> OrderedSet<Detection> {
-            let results = self.detector.detect(in: pixelBuffer, orientation: orientation)
+        public func detect(pixelBuffer: CVPixelBuffer) -> OrderedSet<Detection> {
+            let results = self.detector.detect(in: pixelBuffer)
             
             return OrderedSet(results.map {
                 let rect = $0.boundingBox
                 let box = CGRect(
                     x: rect.minX - rect.width * 0.2,
-                    y: rect.minY,
+                    y: 1 - rect.maxY,
                     width: rect.width * 1.4,
                     height: rect.height
                 )
@@ -43,8 +43,8 @@ extension ASD.Tracking {
             })
         }
         
-        public func embed(pixelBuffer: CVPixelBuffer, faces detections: OrderedSet<Detection>, orientation: CGImagePropertyOrientation) {
-            let results = self.embedder.embed(faces: detections.map{$0.rect}, in: pixelBuffer, orientation: orientation)
+        public func embed(pixelBuffer: CVPixelBuffer, faces detections: OrderedSet<Detection>) {
+            let results = self.embedder.embed(faces: detections.map{$0.rect}, in: pixelBuffer)
             
             for (i, result) in results.enumerated() {
                 detections[i].embedding = result

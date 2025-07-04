@@ -65,6 +65,7 @@ extension ASD {
         private func computeCropRect(pixelBuffer: CVPixelBuffer, rect detectionRect: CGRect) -> CGRect {
             let bufferWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
             let bufferHeight = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
+            print("Video Size:", bufferWidth, "x", bufferHeight)
             // Get detection box dimensions and center in pixels.
             let detectionWidth = detectionRect.width * bufferWidth
             let detectionHeight = detectionRect.height * bufferHeight
@@ -78,7 +79,7 @@ extension ASD {
             let finalHalfSide = finalSideLength / 2.0
             
             let intermediateCropCenterX = detectionCenterX
-            let intermediateCropCenterY = detectionCenterY - (bs * cs)
+            let intermediateCropCenterY = detectionCenterY + (bs * cs)
             
             let finalOriginX = intermediateCropCenterX - finalHalfSide
             let finalOriginY = intermediateCropCenterY - finalHalfSide
@@ -131,7 +132,7 @@ extension ASD {
             let srcH       = CVPixelBufferGetHeight(pixelBuffer)
             let srcStride  = CVPixelBufferGetBytesPerRow(pixelBuffer)
             let cropX      = Int(cropRect.origin.x)
-            let cropY      = srcH - Int(cropRect.maxY)
+            let cropY      = Int(cropRect.origin.y)
             let cropW      = Int(cropRect.width)
             let cropH      = Int(cropRect.height)
             let cropStride = cropW * 4

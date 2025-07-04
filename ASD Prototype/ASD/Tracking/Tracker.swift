@@ -51,6 +51,9 @@ extension ASD.Tracking {
         private var costConfiguration: CostConfiguration
         private var trackConfiguration: TrackConfiguration
         
+        private var screenWidth: Int = 0
+        private var screenHeight: Int = 0
+        
         // MARK: constructors
         init(faceProcessor: FaceProcessor,
              costConfiguration: CostConfiguration = .init(),
@@ -68,7 +71,7 @@ extension ASD.Tracking {
         
         // MARK: public methods
         
-        public func update(pixelBuffer: CVPixelBuffer, orientation: CGImagePropertyOrientation) -> [SendableTrack] {
+        public func update(pixelBuffer: CVPixelBuffer) -> [SendableTrack] {
             // predict track motion
             for track in self.activeTracks {
                 track.predict()
@@ -80,9 +83,9 @@ extension ASD.Tracking {
             // assign tracks to detections
             var progress = AssignmentProgress(
                 tracks: self.activeTracks,
-                detections: self.faceProcessor.detect(pixelBuffer: pixelBuffer, orientation: orientation)
+                detections: self.faceProcessor.detect(pixelBuffer: pixelBuffer)
             )
-            self.assign(&progress, pixelBuffer: pixelBuffer, orientation: orientation)
+            self.assign(&progress, pixelBuffer: pixelBuffer)
             
             // update tracks with detections
             self.registerHits(&progress)
@@ -158,22 +161,31 @@ extension ASD.Tracking {
         }
         
         // MARK: private methods
-        private func assign(_ progress: inout AssignmentProgress, pixelBuffer: CVPixelBuffer, orientation: CGImagePropertyOrientation) {
+        private func assign(_ progress: inout AssignmentProgress, pixelBuffer: CVPixelBuffer) {
             // assign active tracks
             self.applyInitialCostFilter(&progress, costFunction: self.meetsMotionCostCutoff)
-            self.faceProcessor.embed(pixelBuffer: pixelBuffer, faces: progress.detections, orientation: orientation)
+            self.faceProcessor.embed(pixelBuffer: pixelBuffer, faces: progress.detections)
             self.applyCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff)
             self.assignWithRLAP(&progress)
             self.registerMisses(&progress, tracks: &self.activeTracks, trackStatus: .active)
+            print("assignments: \(progress.assignments.count), potential assignments: \(progress.potentialAssignments.count)")
             
             // assign inactive tracks
             progress.tracks = self.inactiveTracks
+            print("\n--- Assigning Inactive Tracks ---")
+            print("Inactive tracks to assign: \(self.inactiveTracks.map { $0.id.uuidString.prefix(4) })")
+            print("Detections available: \(progress.detections.map { $0.id.uuidString.prefix(4) })")
             self.applyInitialCostFilter(&progress, costFunction: self.meetsReIDCostCutoff)
+            print("Potential assignments for inactive tracks: \(progress.potentialAssignments.mapValues { $0.keys.map { $0.id.uuidString.prefix(4) } })")
             self.assignWithRLAP(&progress)
+            print("Assignments for inactive tracks: \(progress.assignments.map { "\( $0.id.uuidString.prefix(4)) : \($1.0.id.uuidString.prefix(4))"})")
             self.registerMisses(&progress, tracks: &self.inactiveTracks, trackStatus: .inactive)
                 
             // assign pending tracks
             progress.tracks = self.pendingTracks
+            print("\n--- Assigning Pending Tracks ---")
+            print("Pending tracks to assign: \(self.pendingTracks.map { $0.id.uuidString.prefix(4) })")
+            print("detections remaining: \(progress.detections.map { $0.id.uuidString.prefix(4) })")
             self.applyInitialCostFilter(&progress, costFunction: self.meetsMotionCostCutoff)
             self.applyCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff)
             self.assignWithRLAP(&progress)
@@ -181,10 +193,10 @@ extension ASD.Tracking {
                 self.pendingTracks.remove(track)
             }
             
-            print("\n-----------------------------------------------------------------\n")
             print("active:\t\(self.activeTracks.map{$0.id.uuidString.prefix(4)})")
             print("inactive:\t\(self.inactiveTracks.map{$0.id.uuidString.prefix(4)})")
             print("pending:\t\(self.pendingTracks.map{$0.id.uuidString.prefix(4)})")
+            print("\n-----------------------------------------------------------------\n")
         }
         
         @inline(__always)
@@ -196,6 +208,7 @@ extension ASD.Tracking {
         @inline(__always)
         private func meetsReIDCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
             costs.appearance = track.cosineDistance(to: detection)
+            print("Re-ID Cost: track \(track.id.uuidString.prefix(4)) <-> detection \(detection.id.uuidString.prefix(4)) = \(costs.appearance)")
             return costs.appearance <= self.costConfiguration.maxReIDCost
         }
         
@@ -204,6 +217,7 @@ extension ASD.Tracking {
             costs.iou = track.iou(with: detection)
             costs.confidence = track.confidenceCost(for: detection)
             costs.ocm = track.velocityCost(for: detection)
+            print("costs for track \(track.id.uuidString.prefix(4)) <-> detection \(detection.id.uuidString.prefix(4)): iou \(costs.iou), ocm \(costs.ocm), confidence \(costs.confidence)")
             return costs.iou >= self.costConfiguration.minIou
         }
         
@@ -212,8 +226,6 @@ extension ASD.Tracking {
             if costs.iou == Float.infinity {
                 return costs.appearance
             }
-            assert(costs.ocm.isFinite)
-            assert(costs.confidence.isFinite)
             if costs.appearance == Float.infinity {
                 return (1 - costs.iou +
                             costs.ocm * self.costConfiguration.ocmWeight +
@@ -362,10 +374,11 @@ extension ASD.Tracking {
             
             if exitCode != 0 {
                 print("WARNING: Solver returned non-zero exit code \(exitCode)")
-                let mat = Matrix<Float>(rows: numTracks, columns: numDetections, elements: costMatrix)
-                print("Cost matrix:")
-                print(mat)
             }
+
+            let mat = Matrix<Float>(rows: numTracks, columns: numDetections, elements: costMatrix)
+            print("Cost matrix:")
+            print(mat)
 
             // add assignments
             let tracks = Array(progress.potentialAssignments.keys)
@@ -456,6 +469,11 @@ extension ASD.Tracking {
             }
             //print("deleted inactive track \(track.id)")
             return false
+        }
+        
+        private func normalizeAndTransformRect(_ rect: CGRect, orientation: CGImagePropertyOrientation) -> CGRect {
+            var rect = rect
+            return rect
         }
     }
 }

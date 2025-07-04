@@ -54,7 +54,7 @@ extension ASD.Tracking {
              confidenceWeight: Float    = 1.0,
              ocmWeight: Float           = 0.2,
              minIou: Float              = 0.2,
-             maxAppearanceCost: Float   = 1.0,
+             maxAppearanceCost: Float   = 0.5,
              maxReIDCost: Float         = 0.3)
         {
             self.appearanceWeight = appearanceWeight
