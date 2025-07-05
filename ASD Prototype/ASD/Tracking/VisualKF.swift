@@ -11,6 +11,10 @@ import simd
 
 extension ASD.Tracking {
     class VisualKF : Utils.KalmanFilter {
+        private static let xBound: Float = Float(Global.videoWidth) / 2.0
+        private static let yBound: Float = Float(Global.videoHeight) / 2.0
+        
+        
         // State: (x, y, s, r, vx, vy, s')
         // Measurement: (x, y, w, h)
         
@@ -137,21 +141,18 @@ extension ASD.Tracking {
             if self.scale < 1e-2 || self.aspectRatio < 0 {
                 return false
             }
-            
-            // check x bounds
-            let halfWidth: Float = self.width / 2
-            if self.xPosition <= -halfWidth || self.xPosition >= 1 + halfWidth {
-                return false
-            }
-            
-            // check y bounds
-            let halfHeight: Float = self.height / 2
-            if self.yPosition <= -halfHeight || self.yPosition >= 1 + halfHeight {
-                return false
-            }
-            
             return true
         }
+        
+//        public override var Q: Matrix<Float> {
+//            get {
+//                let size = sqrt(self.scale)
+//                let std = 0.05 * size
+//                let stdv = 0.00625 * size
+//                return .init(diagonal: [std, std, std, 0.01, stdv, stdv, stdv])
+//            }
+//            set {}
+//        }
         
         private var lastMeasurement: SIMD4<Float>
         private var lastObservedState: Matrix<Float>
@@ -190,19 +191,19 @@ extension ASD.Tracking {
                 B: Matrix.zero,
                 H: Matrix(rows: 4, columns: 7, diagonal: [Float](repeating: 1, count: 4)),
                 Q: Matrix(rows: [
-                    [ 2.42876101e-06, -1.03839921e-07, -3.54527955e-08, -1.63431818e-06,  4.14275830e-06, -3.99964970e-07, -1.49089451e-07],
-                    [-1.03839921e-07,  1.46320604e-06, -5.29957615e-08, -9.39398050e-07, -2.77157719e-08,  2.53089048e-06, -1.42513410e-08],
-                    [-3.54527955e-08, -5.29957615e-08,  1.27419106e-07, -2.80467668e-06, -1.95563872e-07, -9.63137237e-08,  8.56312791e-08],
-                    [-1.63431818e-06, -9.39398050e-07, -2.80467668e-06,  4.38302354e-04,  1.26355139e-06, -9.36985408e-07,  3.12428428e-08],
-                    [ 4.14275830e-06, -2.77157719e-08, -1.95563872e-07,  1.26355139e-06,  8.29982635e-06, -3.73464471e-07, -3.09111784e-07],
-                    [-3.99964970e-07,  2.53089048e-06, -9.63137237e-08, -9.36985408e-07, -3.73464471e-07,  5.07608324e-06, -3.00856481e-08],
-                    [-1.49089451e-07, -1.42513410e-08,  8.56312791e-08,  3.12428428e-08, -3.09111784e-07, -3.00856481e-08,  1.67404023e-07]
+                    [ 2.76384024e+01,  1.26272631e+01, -2.44306029e+02,  2.78650185e-03,  5.52874948e+01,  2.49260963e+01, -4.64828803e+02],
+                    [ 1.26272631e+01,  9.71305095e+00, -1.09689915e+00,  5.22651143e-04,  2.52692561e+01,  1.92320866e+01,  1.51291018e+01],
+                    [-2.44306029e+02, -1.09689915e+00,  2.03852928e+05,  8.27847482e-02, -4.89478381e+02, -1.29774689e+01,  4.07625823e+05],
+                    [ 2.78650185e-03,  5.22651143e-04,  8.27847482e-02,  4.28270662e-04,  5.56470927e-03,  9.79662559e-04,  1.70162934e-01],
+                    [ 5.52874948e+01,  2.52692561e+01, -4.89478381e+02,  5.56470927e-03,  1.10601809e+02,  4.98815834e+01, -9.31638176e+02],
+                    [ 2.49260963e+01,  1.92320866e+01, -1.29774689e+01,  9.79662559e-04,  4.98815834e+01,  3.81011931e+01,  8.33570472e+00],
+                    [-4.64828803e+02,  1.51291018e+01,  4.07625823e+05,  1.70162934e-01, -9.31638176e+02,  8.33570471e+00,  8.15230385e+05]
                 ]),
                 R: Matrix(rows: [
-                    [ 3.51575609e-07,  6.43252841e-08,  3.96189101e-08,  1.69858509e-07],
-                    [ 6.43252841e-08,  2.16193761e-07,  2.39058574e-09, -1.18532093e-06],
-                    [ 3.96189101e-08,  2.39058574e-09,  8.25075609e-08, -8.98603632e-07],
-                    [ 1.69858509e-07, -1.18532093e-06, -8.98603632e-07,  2.64845963e-04]
+                    [ 5.39921154e+02,  3.41849660e+02,  5.24069050e+03, -1.43657096e-02],
+                    [ 3.41849660e+02,  2.17244846e+02,  3.18265486e+03, -9.72325702e-03],
+                    [ 5.24069050e+03,  3.18265486e+03,  5.25004162e+05, -4.25884516e+00],
+                    [-1.43657096e-02, -9.72325702e-03, -4.25884516e+00,  2.72160113e-04]
                 ]),
                 P0: Matrix(diagonal: [1, 1, 1, 1, 0.01, 0.01, 0.001])
             )
@@ -256,6 +257,7 @@ extension ASD.Tracking {
                 for _ in (self.lastMeasurementTime+1)..<self.currentTime {
                     self.lastMeasurement += step
                     self.predictNoTimeUpdate()
+                    self.recomputeR(from: self.lastMeasurement)
                     super.update(measurement: Matrix<Float>(self.lastMeasurement))
                     lastPositions.append(self.lastMeasurement.lowHalf)
                 }
@@ -274,7 +276,7 @@ extension ASD.Tracking {
             
             self.lastMeasurement = z
             self.lastMeasurementTime = self.currentTime
-            
+            self.recomputeR(from: z)
             super.update(measurement: Matrix<Float>(z))
             
             self.recomputeRect()
@@ -327,22 +329,22 @@ extension ASD.Tracking {
             self.yPosition += self.yVelocity
             self.scale += self.growthRate
             
-            let halfWidth = self.width / 2
-            let halfHeight = self.height / 2
+            let xBound = VisualKF.xBound + self.width / 2
+            let yBound = VisualKF.yBound + self.height / 2
             
-            if self.xPosition < -halfWidth {
-                self.xPosition = -halfWidth
+            if self.xPosition < -xBound {
+                self.xPosition = -xBound
                 self.xVelocity = 0
-            } else if self.xPosition > 1 + halfWidth {
-                self.xPosition = halfWidth
+            } else if self.xPosition > xBound {
+                self.xPosition = xBound
                 self.xVelocity = 0
             }
             
-            if self.yPosition < -halfHeight {
-                self.yPosition = -halfHeight
+            if self.yPosition < -yBound {
+                self.yPosition = -yBound
                 self.yVelocity = 0
-            } else if self.yPosition > 1 + halfHeight {
-                self.yPosition = halfHeight
+            } else if self.yPosition > yBound {
+                self.yPosition = yBound
                 self.yVelocity = 0
             }
             
@@ -353,6 +355,12 @@ extension ASD.Tracking {
         private func recomputeRect() {
             self.computedWidth = sqrt(self.scale * self.aspectRatio)
             self.computedHeight = self.computedWidth / self.aspectRatio
+        }
+        
+        @inline(__always)
+        private func recomputeR(from measurement: SIMD4<Float>) {
+//            let std = 0.05 * sqrt(measurement.z)
+//            self.R = .init(diagonal: [std, std, std, 0.1])
         }
     }
 }

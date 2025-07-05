@@ -12,13 +12,15 @@ extension ASD.Tracking {
     {
         let id = UUID()
         let rect: CGRect
+        let kfRect: CGRect
         let confidence: Float
         
         var buffer: CVPixelBuffer?
         var embedding: MLMultiArray?
         
-        init (rect: CGRect, confidence: Float) {
+        init (rect: CGRect, confidence: Float, transformer: CameraCoordinateTransformer) {
             self.rect = rect
+            self.kfRect = transformer.toKfCoordinates(rect)
             self.confidence = confidence
         }
         

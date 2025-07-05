@@ -20,8 +20,6 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     // Published properties to update the SwiftUI view
     @Published public private(set) var detections: [ASD.SendableSpeaker] = []
     
-    public private(set) var videoSize: CGSize
-    
     // AVFoundation properties
     private let videoOutput = AVCaptureVideoDataOutput()
     private let audioOutput = AVCaptureAudioDataOutput()
@@ -33,7 +31,6 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     private var asd: ASD.ASD?
         
     override init() {
-        self.videoSize = CGSize(width: 1280, height: 720) // CGSize(width: 720, height: 1280)
         super.init()
         // Asynchronously check permissions and then set up the session
         sessionQueue.async {
@@ -122,13 +119,17 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         // This method should only be called from the sessionQueue
         
         let session = AVCaptureSession()
-        session.sessionPreset = .hd1280x720
+        session.sessionPreset = Global.videoPreset
         
         self.setupCamera(for: session)
         //self.setupMicrophone(for: session)
         
         let currentTime = CMClockGetTime(session.synchronizationClock!).seconds
-        self.asd = .init(atTime: currentTime) { speakers in
+        self.asd = .init(
+            atTime: currentTime,
+            videoSize: Global.videoSize,
+            cameraAngle: 0
+        ) { speakers in
             Task.detached { @MainActor in
                 self.detections = speakers
             }
@@ -144,7 +145,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     }
     
     private func setupCamera(for session: AVCaptureSession) {
-        self.videoCaptureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+        self.videoCaptureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
         
         guard let videoCaptureDevice = self.videoCaptureDevice else {
             print("Error: No back camera found.")

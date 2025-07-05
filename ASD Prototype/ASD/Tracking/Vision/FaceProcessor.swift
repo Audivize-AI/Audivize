@@ -28,7 +28,7 @@ extension ASD.Tracking {
             self.embedder = FaceEmbedder(verbose: verbose, requestLifespan: embedderRequestLifespan, minReadyRequests: minReadyEmbedderRequests)
         }
         
-        public func detect(pixelBuffer: CVPixelBuffer) -> OrderedSet<Detection> {
+        public func detect(pixelBuffer: CVPixelBuffer, transformer: CameraCoordinateTransformer) -> OrderedSet<Detection> {
             let results = self.detector.detect(in: pixelBuffer)
             
             return OrderedSet(results.map {
@@ -39,7 +39,7 @@ extension ASD.Tracking {
                     width: rect.width * 1.4,
                     height: rect.height
                 )
-                return Detection(rect: box, confidence: Float($0.confidence))
+                return Detection(rect: box, confidence: Float($0.confidence), transformer: transformer)
             })
         }
         

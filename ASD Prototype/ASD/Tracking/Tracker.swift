@@ -43,7 +43,7 @@ extension ASD.Tracking {
         // MARK: private properties
         private let mergeTracks: (ASD.MergeRequest) -> Void
         private let faceProcessor: FaceProcessor
-
+        
         private var activeTracks: OrderedSet<Track>
         private var pendingTracks: OrderedSet<Track>
         private var inactiveTracks: OrderedSet<Track>
@@ -54,12 +54,21 @@ extension ASD.Tracking {
         private var screenWidth: Int = 0
         private var screenHeight: Int = 0
         
+        private let cameraTransformer: CameraCoordinateTransformer
+        
         // MARK: constructors
         init(faceProcessor: FaceProcessor,
+             videoSize: CGSize,
+             cameraAngle: CGFloat,
+             mirrored: Bool = false,
              costConfiguration: CostConfiguration = .init(),
              trackConfiguration: TrackConfiguration = .init(),
              mergeCallback mergeTracks: @escaping (ASD.MergeRequest) -> Void = { _ in })
         {
+            self.cameraTransformer = .init(orientation: .init(angle: cameraAngle, mirrored: mirrored),
+                                           width: videoSize.width,
+                                           height: videoSize.height)
+            
             self.faceProcessor = faceProcessor
             self.activeTracks = []
             self.inactiveTracks = []
@@ -71,7 +80,11 @@ extension ASD.Tracking {
         
         // MARK: public methods
         
-        public func update(pixelBuffer: CVPixelBuffer) -> [SendableTrack] {
+        public func update(pixelBuffer: CVPixelBuffer, orientation: CameraOrientation? = nil) -> [SendableTrack] {
+            if let orientation = orientation {
+                self.cameraTransformer.orientation = orientation
+            }
+            
             // predict track motion
             for track in self.activeTracks {
                 track.predict()
@@ -83,7 +96,10 @@ extension ASD.Tracking {
             // assign tracks to detections
             var progress = AssignmentProgress(
                 tracks: self.activeTracks,
-                detections: self.faceProcessor.detect(pixelBuffer: pixelBuffer)
+                detections: self.faceProcessor.detect(
+                    pixelBuffer: pixelBuffer,
+                    transformer: self.cameraTransformer
+                )
             )
             self.assign(&progress, pixelBuffer: pixelBuffer)
             
@@ -93,7 +109,10 @@ extension ASD.Tracking {
             // create new tracks for unmatched detections
             for detection in progress.detections {
                 do {
-                    let track = try Track(detection: detection, trackConfiguration: self.trackConfiguration, costConfiguration: self.costConfiguration)
+                    let track = try Track(detection: detection,
+                                          transformer: self.cameraTransformer,
+                                          trackConfiguration: self.trackConfiguration,
+                                          costConfiguration: self.costConfiguration)
                     self.pendingTracks.append(track)
                 } catch {
                     print("Failed to create new track: \(error)")
@@ -111,8 +130,13 @@ extension ASD.Tracking {
         ///   - detection: the detection associated with the track. Will initialize the track as inactive if not provided.
         /// - Throws: when the embedding vector's shape is mismatched from the desired shape
         public func addTrack(id: UUID, embedding: MLMultiArray, detection: Detection? = nil) throws {
-            let track = try Track(id: id, embedding: embedding, trackConfiguration: self.trackConfiguration, costConfiguration: self.costConfiguration, detection: detection)
-            if track.status == .active {
+            let track = try Track(id: id,
+                                  embedding: embedding,
+                                  transformer: self.cameraTransformer,
+                                  trackConfiguration: self.trackConfiguration,
+                                  costConfiguration: self.costConfiguration,
+                                  detection: detection)
+            if track.status.isActive {
                 self.activeTracks.append(track)
             } else {
                 self.inactiveTracks.append(track)
@@ -167,6 +191,7 @@ extension ASD.Tracking {
             self.faceProcessor.embed(pixelBuffer: pixelBuffer, faces: progress.detections)
             self.applyCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff)
             self.assignWithRLAP(&progress)
+            self.applyInitialCostFilter(&progress, costFunction: self.meetsReIDCostCutoff)
             self.registerMisses(&progress, tracks: &self.activeTracks, trackStatus: .active)
             print("assignments: \(progress.assignments.count), potential assignments: \(progress.potentialAssignments.count)")
             
@@ -180,7 +205,7 @@ extension ASD.Tracking {
             self.assignWithRLAP(&progress)
             print("Assignments for inactive tracks: \(progress.assignments.map { "\( $0.id.uuidString.prefix(4)) : \($1.0.id.uuidString.prefix(4))"})")
             self.registerMisses(&progress, tracks: &self.inactiveTracks, trackStatus: .inactive)
-                
+            
             // assign pending tracks
             progress.tracks = self.pendingTracks
             print("\n--- Assigning Pending Tracks ---")
@@ -228,13 +253,13 @@ extension ASD.Tracking {
             }
             if costs.appearance == Float.infinity {
                 return (1 - costs.iou +
-                            costs.ocm * self.costConfiguration.ocmWeight +
-                            costs.confidence * self.costConfiguration.confidenceWeight)
-            }
-            return (1 - costs.iou +
-                        costs.appearance * self.costConfiguration.appearanceWeight +
                         costs.ocm * self.costConfiguration.ocmWeight +
                         costs.confidence * self.costConfiguration.confidenceWeight)
+            }
+            return (1 - costs.iou +
+                    costs.appearance * self.costConfiguration.appearanceWeight +
+                    costs.ocm * self.costConfiguration.ocmWeight +
+                    costs.confidence * self.costConfiguration.confidenceWeight)
         }
         
         /// Looks at all possible (Track, Detection) pairings and determines which ones meet the cost cutoffs.
@@ -375,14 +400,14 @@ extension ASD.Tracking {
             if exitCode != 0 {
                 print("WARNING: Solver returned non-zero exit code \(exitCode)")
             }
-
+            
             let mat = Matrix<Float>(rows: numTracks, columns: numDetections, elements: costMatrix)
             print("Cost matrix:")
             print(mat)
-
+            
             // add assignments
             let tracks = Array(progress.potentialAssignments.keys)
-                
+            
             for (row, col) in zip(rows, cols) {
                 let track = tracks[row]
                 let detection = detectionArray[col]
@@ -469,11 +494,6 @@ extension ASD.Tracking {
             }
             //print("deleted inactive track \(track.id)")
             return false
-        }
-        
-        private func normalizeAndTransformRect(_ rect: CGRect, orientation: CGImagePropertyOrientation) -> CGRect {
-            var rect = rect
-            return rect
         }
     }
 }

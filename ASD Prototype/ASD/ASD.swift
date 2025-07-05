@@ -19,6 +19,8 @@ extension ASD {
         private var frameSkipCounter: Int = 0
         
         init(atTime time: Double,
+             videoSize: CGSize,
+             cameraAngle: CGFloat,
              onFused: @Sendable @escaping ([SendableSpeaker]) async -> Void,
              onMerge: @Sendable @escaping (MergeRequest) -> Void = { _ in },
              numModels: Int = 8,
@@ -26,6 +28,8 @@ extension ASD {
              scoreBufferPadding: Int = 25)
         {
             self.videoProcessor = .init(atTime: time,
+                                        videoSize: videoSize,
+                                        cameraAngle: cameraAngle,
                                         videoBufferPadding: videoBufferPadding,
                                         scoreBufferPadding: scoreBufferPadding,
                                         mergeCallback: onMerge)
@@ -54,7 +58,10 @@ extension ASD {
             let callback = self.onFused
             let modelPool = self.modelPool
             
-            let mirrored = connection.isVideoMirrored != (cameraPosition == .back)
+            let orientation = Tracking.CameraOrientation(
+                angle: connection.videoRotationAngle,
+                mirrored: (connection.isVideoMirrored) != (cameraPosition == .back)
+            )
             
             Task.detached(priority: .userInitiated) {
                 if isVideoUpdate {
@@ -62,7 +69,7 @@ extension ASD {
                     let speakers = await videoProcessor.updateVideosAndGetSpeakers(
                         atTime: time,
                         from: pixelBuffer,
-                        mirrored: mirrored
+                        orientation: orientation
                     )
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
                     await callback(speakers)
@@ -93,7 +100,7 @@ extension ASD {
                     let res = await videoProcessor.updateScoresAndGetSpeakers(
                         atTime: time,
                         with: scores,
-                        mirrored: mirrored
+                        orientation: orientation
                     )
                     await callback(res)
                 }

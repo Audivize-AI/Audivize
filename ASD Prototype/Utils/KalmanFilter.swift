@@ -27,10 +27,10 @@ extension Utils {
         public let H: Matrix<Float>
         
         /// Process noise covariance
-        public let Q: Matrix<Float>
+        public var Q: Matrix<Float>
         
         /// Measurement noise covariance
-        public let R: Matrix<Float>
+        public var R: Matrix<Float>
         
         /// Identity matrix
         public let I: Matrix<Float>

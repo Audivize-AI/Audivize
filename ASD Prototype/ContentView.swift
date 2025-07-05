@@ -13,7 +13,6 @@ import AVFoundation
 // than SwiftUI for this use case because its coordinate system is
 // directly tied to the camera preview layer's frame.
 class DrawingView: UIView {
-    var orientation: CGImagePropertyOrientation
     var faces: [ASD.SendableSpeaker] = [] {
         // When this property is set, redraw the view.
         didSet {
@@ -32,13 +31,20 @@ class DrawingView: UIView {
     
     init(frame: CGRect, videoSize: CGSize, orientation: CGImagePropertyOrientation) {
         self.startTime = Date().timeIntervalSince1970
-        self.orientation = orientation
+        var frame = frame
+        if (frame.width > frame.height) != (videoSize.width > videoSize.height) {
+            frame = CGRect(x: frame.origin.y,
+                           y: frame.origin.x,
+                           width: frame.height,
+                           height: frame.width)        
+        }
         super.init(frame: frame)
+        
         backgroundColor = .clear // Make it transparent
         isOpaque = false
         
-        let videoAspectRatio = videoSize.width / videoSize.height
         let frameAspectRatio = self.bounds.width / self.bounds.height
+        let videoAspectRatio = videoSize.width / videoSize.height
         print("Bounds: \(self.bounds)")
         
         if (videoAspectRatio > frameAspectRatio) {
@@ -166,8 +172,7 @@ struct CameraPreview: UIViewRepresentable {
         view.layer.addSublayer(previewLayer)
         
         // Setup the drawing layer
-        let drawingView = DrawingView(frame: view.bounds, videoSize: cameraManager.videoSize, orientation: .leftMirrored)
-        print("size: \(cameraManager.videoSize)")
+        let drawingView = DrawingView(frame: view.bounds, videoSize: Global.videoSize, orientation: .leftMirrored)
         
         drawingView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(drawingView)
@@ -181,7 +186,6 @@ struct CameraPreview: UIViewRepresentable {
     
     func updateUIView(_ uiView: UIView, context: Context) {
         // Update session if it's newly available
-        var orientation: CGImagePropertyOrientation = .leftMirrored
         if context.coordinator.previewLayer?.session == nil, let session = cameraManager.captureSession {
             context.coordinator.previewLayer?.session = session
             
@@ -190,7 +194,6 @@ struct CameraPreview: UIViewRepresentable {
                 if let previewConnection = context.coordinator.previewLayer?.connection,
                         previewConnection.isVideoRotationAngleSupported(0) {
                     previewConnection.videoRotationAngle = 0
-                    orientation = Utils.Images.cgImageOrientation(fromRotationAngle: 0, mirrored: true)
                 }
             } else {
                 if let previewConnection = context.coordinator.previewLayer?.connection,
@@ -206,7 +209,6 @@ struct CameraPreview: UIViewRepresentable {
         
         // Pass the latest bounding boxes to the drawing view
         // The drawingView will automatically redraw itself when this property is set.
-        context.coordinator.drawingView?.orientation = orientation
         context.coordinator.drawingView?.faces = cameraManager.detections
     }
     

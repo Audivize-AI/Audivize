@@ -48,6 +48,7 @@ extension ASD.Tracking {
         public let id = UUID()
         
         public private(set) var hits: Int = 1
+        public private(set) var rect: CGRect = .zero
         public private(set) var costs: Costs = Costs()
         public private(set) var status: Status = .pending
         public private(set) var embedding: MLMultiArray
@@ -64,10 +65,6 @@ extension ASD.Tracking {
             return self.status.isPending || (self.status.isActive && self.iterationsUntilEmbeddingUpdate <= 0)
         }
         
-        public var rect: CGRect {
-            return self.kalmanFilter.rect
-        }
-        
         public var stringValue: String {
             return "Track \(self.id)"
         }
@@ -81,6 +78,7 @@ extension ASD.Tracking {
         nonisolated(unsafe) private static var numTracks: Int = 0
         
         private let configuration: TrackConfiguration
+        private let cameraTransformer: CameraCoordinateTransformer
         private let kalmanFilter: VisualKF
         
         private var iterationsUntilEmbeddingUpdate: Int
@@ -94,17 +92,22 @@ extension ASD.Tracking {
         /// - Parameter trackConfiguration: trackConfiguration of parent tracker
         /// - Parameter costConfiguration: costConfiguration of parent tracker
         /// - Throws: `TrackInitializationError.missingEmbedding` when `detection`'s embedding is `nil`
-        public init(detection: Detection, trackConfiguration: TrackConfiguration, costConfiguration: CostConfiguration) throws {
+        public init(detection: Detection,
+                    transformer: CameraCoordinateTransformer,
+                    trackConfiguration: TrackConfiguration,
+                    costConfiguration: CostConfiguration) throws {
             guard let embedding = detection.embedding else {
                 throw TrackInitializationError.missingEmbedding
             }
             self.embedding = embedding
-            self.kalmanFilter = VisualKF(initialObservation: detection.rect)
             self.averageAppearanceCost = costConfiguration.maxAppearanceCost / 2 // conservative estimate
             self.iterationsUntilEmbeddingUpdate = trackConfiguration.iterationsPerEmbeddingUpdate
             self.configuration = trackConfiguration
             self.lastConfidence = detection.confidence
             self.expectedConfidence = detection.confidence
+            self.cameraTransformer = transformer
+            self.kalmanFilter = VisualKF(initialObservation: detection.kfRect)
+            self.rect = detection.rect
             Track.numTracks += 1
             print("Track \(self.id) initialized. Total tracks: \(Track.numTracks)")
         }
@@ -116,12 +119,26 @@ extension ASD.Tracking {
         /// - Parameter costConfiguration: costConfiguration of parent tracker
         /// - Parameter detection: the detection associated with this track (if left blank then the track will initialize as inactive)
         /// - Throws `embeddingDimensionMismatch` when `embedding` does not have the right shape, namely (1,128) or (128,)
-        public init(id: UUID, embedding: MLMultiArray, trackConfiguration: TrackConfiguration, costConfiguration: CostConfiguration, detection: Detection? = nil) throws {
+        public init(id: UUID,
+                    embedding: MLMultiArray,
+                    transformer: CameraCoordinateTransformer,
+                    trackConfiguration: TrackConfiguration,
+                    costConfiguration: CostConfiguration,
+                    detection: Detection? = nil) throws {
             if embedding.shape.last != 128 || embedding.count != 128 {
                 throw TrackInitializationError.embeddingDimensionMismatch
             }
+            self.cameraTransformer = transformer
             self.embedding = embedding
-            self.kalmanFilter = VisualKF(initialObservation: detection?.rect ?? .zero)
+            
+            if let det = detection {
+                self.rect = det.rect
+                self.kalmanFilter = VisualKF(initialObservation: det.kfRect)
+            } else {
+                self.rect = CGRect.zero
+                self.kalmanFilter = VisualKF(initialObservation: CGRect.zero)
+            }
+            
             self.averageAppearanceCost = costConfiguration.maxAppearanceCost / 2
             self.iterationsUntilEmbeddingUpdate = trackConfiguration.iterationsPerEmbeddingUpdate
             self.configuration = trackConfiguration
@@ -171,6 +188,7 @@ extension ASD.Tracking {
         @inline(__always)
         func predict() {
             self.kalmanFilter.predict()
+            self.rect = self.cameraTransformer.toTrackCoordinates(self.kalmanFilter.rect)
             self.iterationsUntilEmbeddingUpdate -= 1
         }
         
@@ -179,6 +197,7 @@ extension ASD.Tracking {
         /// - Parameter costs: `Costs` object associated with the assignment.
         func registerHit(with detection: Detection, costs: Costs) {
             // register hit
+            
             if !self.status.isActive {
                 if self.hits < 0 {
                     self.hits = 1
@@ -194,19 +213,23 @@ extension ASD.Tracking {
                 )
                 
                 if self.hits >= threshold {
-                    if status.isInactive {
-                        self.kalmanFilter.activate(detection.rect)
-                    }
-                    
-                    self.status = .active
                     self.hits = 0
+                    if status.isInactive {
+                        self.kalmanFilter.activate(detection.kfRect)
+                        self.rect = detection.rect
+                        self.status = .active
+                    } else {
+                        // update state
+                        self.kalmanFilter.update(measurement: detection.kfRect)
+                    }
+                    self.status = .active
                 }
             } else {
                 self.hits = 0
+                // update state
+                self.kalmanFilter.update(measurement: detection.kfRect)
+                self.rect = self.cameraTransformer.toTrackCoordinates(self.kalmanFilter.rect)
             }
-            
-            // update state
-            self.kalmanFilter.update(measurement: detection.rect)
             
             // update confidence
             self.lastConfidence2 = self.lastConfidence
@@ -265,7 +288,7 @@ extension ASD.Tracking {
         @inline(__always)
         func iou(with detection: Detection) -> Float {
             print("x: \(self.kalmanFilter.rect.midX), y: \(self.kalmanFilter.rect.midY), Area: \(self.kalmanFilter.scale), Aspect ratio: \(self.kalmanFilter.aspectRatio)")
-            return Utils.iou(self.kalmanFilter.rect, detection.rect)
+            return Utils.iou(self.kalmanFilter.rect, detection.kfRect)
         }
         
         @inline(__always)
@@ -275,7 +298,7 @@ extension ASD.Tracking {
         
         @inline(__always)
         func velocityCost(for detection: Detection) -> Float {
-            return self.kalmanFilter.velocityCost(to: detection.rect)
+            return self.kalmanFilter.velocityCost(to: detection.kfRect)
         }
         
         func hash(into hasher: inout Hasher) {
