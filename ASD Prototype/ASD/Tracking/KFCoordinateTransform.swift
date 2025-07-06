@@ -6,24 +6,21 @@
 //
 
 import Foundation
+import UIKit
 
 extension ASD.Tracking {
     enum CameraOrientation: Int {
         case base0      = 0
-        case base90     = 1
-        case base180    = 2
-        case base270    = 3
-        case mirror0    = 4
-        case mirror90   = 5
-        case mirror180  = 6
-        case mirror270  = 7
+        case base180    = 1
+        case mirror0    = 2
+        case mirror180  = 3
         
         public var isMirrored: Bool {
-            return self.rawValue >= 4
+            return self.rawValue >= 2
         }
         
         init(angle: CGFloat, mirrored: Bool) {
-            self.init(rawValue: Int(angle.rounded()) / 90 + (mirrored ? 4 : 0))!
+            self.init(rawValue: Int(angle.rounded()) / 180 + (mirrored ? 2 : 0))!
         }
     }
 
@@ -59,20 +56,6 @@ extension ASD.Tracking {
                     width: self.width * rect.width,
                     height: self.height * rect.height
                 )
-            case .base90:
-                return CGRect(
-                    x: self.width * (0.5 - rect.maxY),
-                    y: self.height * (rect.minX - 0.5),
-                    width: self.width * rect.height,
-                    height: self.height * rect.width
-                )
-            case .mirror90:
-                return CGRect(
-                    x: self.width * (rect.minY - 0.5),
-                    y: self.height * (rect.minX - 0.5),
-                    width: self.width * rect.height,
-                    height: self.height * rect.width
-                )
             case .base180:
                 return CGRect(
                     x: self.width * (0.5 - rect.maxX),
@@ -86,20 +69,6 @@ extension ASD.Tracking {
                     y: self.height * (0.5 - rect.maxY),
                     width: self.width * rect.width,
                     height: self.height * rect.height
-                )
-            case .base270:
-                return CGRect(
-                    x: self.width * (rect.minY - 0.5),
-                    y: self.height * (0.5 - rect.maxX),
-                    width: self.width * rect.height,
-                    height: self.height * rect.width
-                )
-            case .mirror270:
-                return CGRect(
-                    x: self.width * (0.5 - rect.maxY),
-                    y: self.height * (0.5 - rect.maxX),
-                    width: self.width * rect.height,
-                    height: self.height * rect.width
                 )
             }
         }
@@ -120,20 +89,6 @@ extension ASD.Tracking {
                     width: reciprocalWidth * rect.width,
                     height: reciprocalHeight * rect.height
                 )
-            case .base270:
-                return CGRect(
-                    x: reciprocalWidth * -rect.maxY + 0.5,
-                    y: reciprocalHeight * rect.minX + 0.5,
-                    width: reciprocalWidth * rect.height,
-                    height: reciprocalHeight * rect.width
-                )
-            case .mirror270:
-                return CGRect(
-                    x: reciprocalWidth * rect.minY + 0.5,
-                    y: reciprocalHeight * rect.minX + 0.5,
-                    width: reciprocalWidth * rect.height,
-                    height: reciprocalHeight * rect.width
-                )
             case .base180:
                 return CGRect(
                     x: reciprocalWidth * -rect.maxX + 0.5,
@@ -147,20 +102,6 @@ extension ASD.Tracking {
                     y: reciprocalHeight * -rect.maxY + 0.5,
                     width: reciprocalWidth * rect.width,
                     height: reciprocalHeight * rect.height
-                )
-            case .base90:
-                return CGRect(
-                    x: reciprocalWidth * rect.minY + 0.5,
-                    y: reciprocalHeight * -rect.maxX + 0.5,
-                    width: reciprocalWidth * rect.height,
-                    height: reciprocalHeight * rect.width
-                )
-            case .mirror90:
-                return CGRect(
-                    x: reciprocalWidth * -rect.maxY + 0.5,
-                    y: reciprocalHeight * -rect.maxX + 0.5,
-                    width: reciprocalWidth * rect.height,
-                    height: reciprocalHeight * rect.width
                 )
             }
         }

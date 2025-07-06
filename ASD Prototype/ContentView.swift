@@ -45,32 +45,39 @@ class DrawingView: UIView {
         
         let frameAspectRatio = self.bounds.width / self.bounds.height
         let videoAspectRatio = videoSize.width / videoSize.height
-        print("Bounds: \(self.bounds)")
         
         if (videoAspectRatio > frameAspectRatio) {
             // video is too wide -> fix x-axis
-            let drawingWidth = self.bounds.height * videoAspectRatio
-            self.drawRect = CGRect(
-                x: (self.bounds.width - drawingWidth) / 2,
-                y: 0,
-                width: drawingWidth,
-                height: self.bounds.height
-            )
-        } else {
-            // video is too tall -> fix y-axis
+            // let drawingWidth = self.bounds.height * videoAspectRatio
             let drawingHeight = self.bounds.width / videoAspectRatio
             self.drawRect = CGRect(
-                x: 0,
-                y: (self.bounds.height - drawingHeight) / 2,
+                x: 0,                                           // (self.bounds.width - drawingWidth) / 2,
+                y: (self.bounds.height - drawingHeight) / 2,    // 0,
+                width: self.bounds.width,                       // drawingWidth,
+                height: drawingHeight                           // self.bounds.height
+            )
+            
+            self.scale = .init(
                 width: self.bounds.width,
                 height: drawingHeight
             )
+        } else {
+            // video is too tall -> fix y-axis
+            // let drawingHeight = self.bounds.width / videoAspectRatio
+            let drawingWidth = self.bounds.height * videoAspectRatio
+            self.drawRect = CGRect(
+                x: (self.bounds.width - drawingWidth) / 2,  // 0,
+                y: 0,                                       // (self.bounds.height - drawingHeight) / 2,
+                width: drawingWidth,                        // self.bounds.width,
+                height: self.bounds.height                  // drawingHeight
+            )
+            
+            self.scale = .init(
+                width: drawingWidth,
+                height: self.bounds.height
+            )
         }
         
-        self.scale = CGSize(
-            width: self.drawRect.width,
-            height: self.drawRect.height
-        )
         self.videoSize = videoSize
     }
     
@@ -167,9 +174,7 @@ struct CameraPreview: UIViewRepresentable {
         let view = UIView(frame: UIScreen.main.bounds)
         
         // Setup the preview layer
-        let previewLayer = AVCaptureVideoPreviewLayer()
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
+        view.layer.addSublayer(cameraManager.previewLayer)
         
         // Setup the drawing layer
         let drawingView = DrawingView(frame: view.bounds, videoSize: Global.videoSize, orientation: .leftMirrored)
@@ -178,31 +183,13 @@ struct CameraPreview: UIViewRepresentable {
         view.addSubview(drawingView)
         
         // Store the views in the coordinator to update them later
-        context.coordinator.previewLayer = previewLayer
+        context.coordinator.previewLayer = cameraManager.previewLayer
         context.coordinator.drawingView = drawingView
         
         return view
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
-        // Update session if it's newly available
-        if context.coordinator.previewLayer?.session == nil, let session = cameraManager.captureSession {
-            context.coordinator.previewLayer?.session = session
-            
-            // FIX: Force previewLayer orientation to match
-            if #available(iOS 17.0, *) {
-                if let previewConnection = context.coordinator.previewLayer?.connection,
-                        previewConnection.isVideoRotationAngleSupported(0) {
-                    previewConnection.videoRotationAngle = 0
-                }
-            } else {
-                if let previewConnection = context.coordinator.previewLayer?.connection,
-                        previewConnection.isVideoOrientationSupported {
-                    previewConnection.videoOrientation = .landscapeLeft
-                }
-            }
-        }
-        
         // Update layer frames on size change
         context.coordinator.previewLayer?.frame = uiView.bounds
         context.coordinator.drawingView?.frame = uiView.bounds
@@ -226,12 +213,35 @@ struct CameraPreview: UIViewRepresentable {
 // The ContentView becomes very clean, as all the complex drawing logic
 // is now encapsulated in the CameraPreview representable.
 struct ContentView: View {
-    @StateObject private var cameraManager = AVManager()
+    @StateObject private var cameraManager = AVManager(cameraAngle: ContentView.getCameraAngle())
     
     var body: some View {
         CameraPreview(cameraManager: cameraManager)
             .ignoresSafeArea()
             .onAppear(perform: cameraManager.startSession)
             .onDisappear(perform: cameraManager.stopSession)
+            .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+                    return
+                }
+                let ifaceOrientation = windowScene.interfaceOrientation
+                cameraManager.updateVideoOrientation(for: ifaceOrientation)
+            }
+    }
+    
+    private static func getCameraAngle() -> CGFloat {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            return 0.0
+        }
+        
+        switch windowScene.interfaceOrientation {
+        case .landscapeRight:
+            return 180.0
+        case .landscapeLeft:
+            return 0.0
+        default:
+            print("WARNING: Unsupported interface orientation: \(windowScene.interfaceOrientation)")
+            return 0.0
+        }
     }
 }
