@@ -84,7 +84,8 @@ extension ASD.Tracking {
         private var lastConfidence: Float?
         private var lastConfidence2: Float?
         
-        private var appearanceCostKF: UnivariateKF = .init(x: 0, Q: 0.006, R: 0.0045)
+        //Q: 0.006
+        private var appearanceCostKF: UnivariateKF = .init(x: 0, Q: 1e-10, R: 0.0045)
         
         // MARK: constructors
         
@@ -249,9 +250,9 @@ extension ASD.Tracking {
                     self.kalmanFilter.deactivate()
                     self.hits = 0
                 } else {
-//                    self.kalmanFilter.xVelocity *= self.configuration.velocityDamping
-//                    self.kalmanFilter.yVelocity *= self.configuration.velocityDamping
-//                    self.kalmanFilter.growthRate *= self.configuration.growthDamping
+                    self.kalmanFilter.xVelocity *= self.configuration.velocityDamping
+                    self.kalmanFilter.yVelocity *= self.configuration.velocityDamping
+                    self.kalmanFilter.growthRate *= self.configuration.growthDamping
                 }
             } else if self.status.isInactive {
                 self.hits -= 1

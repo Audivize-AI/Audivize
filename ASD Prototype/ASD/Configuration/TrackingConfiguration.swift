@@ -23,7 +23,7 @@ extension ASD.Tracking {
              activationThreshold: Int               = 2,
              deactivationThreshold: Int             = 8,
              deletionThreshold: Int                 = 10 * 30,
-             iterationsPerEmbeddingUpdate: Int      = 5,
+             iterationsPerEmbeddingUpdate: Int      = 1,
              embeddingAlpha: Float                  = 0.2,
              embeddingConfidenceThreshold: Float    = 0.7,
              velocityDamping: Float                 = 0.5,

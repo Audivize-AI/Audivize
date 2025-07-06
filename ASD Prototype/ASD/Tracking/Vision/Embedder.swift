@@ -57,25 +57,21 @@ extension ASD.Tracking {
             
             let bufferWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
             let bufferHeight = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
+            let maxRect = CGRect(x: 0, y: 0, width: 1, height: 1)
             
-            let rects = rects.map { rect in
+            for (request, rect) in zip(requests, rects) {
                 let size = max(rect.width * bufferWidth, rect.height * bufferHeight)
                 let width = size / bufferWidth
                 let height = size / bufferHeight
                 let halfWidth = width / 2
                 let halfHeight = height / 2
                 
-                return CGRect(
+                request.regionOfInterest = CGRect(
                     x: rect.midX - halfWidth,
                     y: rect.midY - halfHeight,
                     width: width,
                     height: height
-                )
-            }
-            
-            let maxRect = CGRect(x: 0, y: 0, width: 1, height: 1)
-            for (request, rect) in zip(requests, rects) {
-                request.regionOfInterest = rect.intersection(maxRect)
+                ).intersection(maxRect)
             }
             
             let usedRequests = Array(self.requests[0..<rects.count])
@@ -124,7 +120,7 @@ extension ASD.Tracking {
             
             for _ in 0..<num {
                 let r = VNCoreMLRequest(model: self.model)
-                r.imageCropAndScaleOption = .scaleFit
+                r.imageCropAndScaleOption = .scaleFill
                 self.requests.append(r)
                 self.expirations.append(expirationTime)
             }
