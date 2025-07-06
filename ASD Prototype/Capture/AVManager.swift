@@ -1,12 +1,3 @@
-// =================================================================
-// FILE 1: CameraManager.swift
-// Create a new Swift file and name it CameraManager.swift
-// =================================================================
-// This class is the heart of our app. It handles setting up the camera,
-// processing video frames, and running the Core ML model via Vision.
-// IMPORTANT: This class has no knowledge of the UI. It only deals with
-// camera data and provides normalized results (coordinates from 0.0 to 1.0).
-
 @preconcurrency import AVFoundation
 @preconcurrency import Vision
 import UIKit
@@ -14,11 +5,13 @@ import SwiftUI
 
 
 class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
+    
     // This allows the CameraPreview vbut hiew to reactively update when the session is ready.
     @Published var captureSession: AVCaptureSession?
     
     // Published properties to update the SwiftUI view
     @Published public private(set) var detections: [ASD.SendableSpeaker] = []
+    @Published public private(set) var previewLayer: AVCaptureVideoPreviewLayer
     
     // AVFoundation properties
     private let videoOutput = AVCaptureVideoDataOutput()
@@ -30,11 +23,12 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     // Vision and Core ML properties
     private var asd: ASD.ASD?
         
-    override init() {
+    init(cameraAngle: CGFloat = 0.0) {
+        self.previewLayer = .init()
         super.init()
         // Asynchronously check permissions and then set up the session
         sessionQueue.async {
-            self.checkPermissionsAndSetup()
+            self.setupCaptureSession(cameraAngle: cameraAngle)
         }
     }
     
@@ -73,62 +67,75 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         }
     }
     
-    // MARK: - AVFoundation Camera Setup
-    
-    private func checkPermissionsAndSetup() {
-        switch (AVCaptureDevice.authorizationStatus(for: .video), AVCaptureDevice.authorizationStatus(for: .audio)) {
-        case (.authorized, .authorized):
-            self.setupCaptureSession()
-        case (.notDetermined, .authorized):
-            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                if granted {
-                    self?.setupCaptureSession()
-                } else {
-                    print("Camera access was denied.")
-                }
-            }
-        case (.authorized, .notDetermined):
-            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
-                if granted {
-                    self?.setupCaptureSession()
-                } else {
-                    print("Microphone access was denied.")
-                }
-            }
-        case (.notDetermined, .notDetermined):
-            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                if granted {
-                    AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
-                        if granted {
-                            self?.setupCaptureSession()
-                        } else {
-                            print("Microphone access was denied.")
-                        }
-                    }
-                } else {
-                    print("Camera access was denied.")
-                }
-            }
+    func updateVideoOrientation(for orientation: UIInterfaceOrientation) {
+        let angle: CGFloat
+        
+        switch orientation {
+        case .landscapeRight:
+            angle = 180
+        case .landscapeLeft:
+            angle = 0
         default:
-            print("Camera and/or Microphone access is restricted or denied.")
+            fatalError("Unsupported orientation: \(orientation). \(String(describing: orientation))")
+        }
+        
+        sessionQueue.async {
+            guard let connection = self.videoOutput.connection(with: .video) else { return }
+
+            if connection.isVideoRotationAngleSupported(angle) {
+                connection.videoRotationAngle = angle
+            }
+        }
+        
+        Task { @MainActor in
+            self.previewLayer.connection?.videoRotationAngle = angle
         }
     }
     
-    private func setupCaptureSession() {
+    // MARK: - AVFoundation Camera Setup
+    
+    private func setupCaptureSession(cameraAngle: CGFloat) {
         print("Setting up capture session...")
         // This method should only be called from the sessionQueue
         
         let session = AVCaptureSession()
         session.sessionPreset = Global.videoPreset
         
-        self.setupCamera(for: session)
-        //self.setupMicrophone(for: session)
+        // Set up camera
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            self.setupCamera(for: session, cameraAngle: cameraAngle)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                if granted {
+                    self?.setupCamera(for: session, cameraAngle: cameraAngle)
+                } else {
+                    print("Camera access was denied.")
+                }
+            }
+        default: break
+        }
+        
+        // set up microphone
+//        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+//        case .authorized:
+//            self.setupMicrophone(for: session)
+//        case .notDetermined:
+//            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+//                if granted {
+//                    self?.setupMicrophone(for: session)
+//                } else {
+//                    print("Microphone access was denied.")
+//                }
+//            }
+//        default: break
+//        }
         
         let currentTime = CMClockGetTime(session.synchronizationClock!).seconds
         self.asd = .init(
             atTime: currentTime,
             videoSize: Global.videoSize,
-            cameraAngle: 0
+            cameraAngle: cameraAngle
         ) { speakers in
             Task.detached { @MainActor in
                 self.detections = speakers
@@ -141,10 +148,13 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         
         Task { @MainActor in
             self.captureSession = session
+            self.previewLayer.session = session
+            self.previewLayer.videoGravity = .resizeAspect
+            self.previewLayer.connection?.videoRotationAngle = cameraAngle
         }
     }
     
-    private func setupCamera(for session: AVCaptureSession) {
+    private func setupCamera(for session: AVCaptureSession, cameraAngle: CGFloat) {
         self.videoCaptureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
         
         guard let videoCaptureDevice = self.videoCaptureDevice else {
@@ -174,23 +184,15 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         }
         
         if let connection = videoOutput.connection(with: .video) {
-            // Use the new API on iOS 17 and later
-            if #available(iOS 17.0, *) {
-                // To set portrait orientation, we check for and set a 90-degree rotation.
-                if connection.isVideoRotationAngleSupported(0) {
-                    connection.videoRotationAngle = 0
-                }
+            if connection.isVideoRotationAngleSupported(cameraAngle) {
+                connection.videoRotationAngle = cameraAngle
             } else {
-                // Fallback for earlier iOS versions
-                if connection.isVideoOrientationSupported {
-                    connection.videoOrientation = .landscapeLeft
-                }
+                connection.videoRotationAngle = 0
             }
         }
     }
     
     private func setupMicrophone(for session: AVCaptureSession) {
-        
         self.audioCaptureDevice = AVCaptureDevice.default(for: .audio)
         
         guard let audioCaptureDevice = self.audioCaptureDevice else {
