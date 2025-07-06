@@ -52,9 +52,11 @@ extension ASD.Tracking {
         public private(set) var costs: Costs = Costs()
         public private(set) var status: Status = .pending
         public private(set) var embedding: MLMultiArray
-        public private(set) var averageAppearanceCost: Float
         public private(set) var isPermanent: Bool = false
         public private(set) var expectedConfidence: Float = 0.0
+        public var averageAppearanceCost: Float {
+            return self.appearanceCostKF.x
+        }
         
         // MARK: public computed properties
         public var isDeletable: Bool {
@@ -74,9 +76,6 @@ extension ASD.Tracking {
         }
         
         // MARK: private properties
-        
-        nonisolated(unsafe) private static var numTracks: Int = 0
-        
         private let configuration: TrackConfiguration
         private let cameraTransformer: CameraCoordinateTransformer
         private let kalmanFilter: VisualKF
@@ -84,6 +83,8 @@ extension ASD.Tracking {
         private var iterationsUntilEmbeddingUpdate: Int
         private var lastConfidence: Float?
         private var lastConfidence2: Float?
+        
+        private var appearanceCostKF: UnivariateKF = .init(x: 0, Q: 0.006, R: 0.0045)
         
         // MARK: constructors
         
@@ -100,7 +101,7 @@ extension ASD.Tracking {
                 throw TrackInitializationError.missingEmbedding
             }
             self.embedding = embedding
-            self.averageAppearanceCost = costConfiguration.maxAppearanceCost / 2 // conservative estimate
+            self.appearanceCostKF.x = costConfiguration.maxAppearanceCost / 2 // conservative estimate
             self.iterationsUntilEmbeddingUpdate = trackConfiguration.iterationsPerEmbeddingUpdate
             self.configuration = trackConfiguration
             self.lastConfidence = detection.confidence
@@ -108,8 +109,6 @@ extension ASD.Tracking {
             self.cameraTransformer = transformer
             self.kalmanFilter = VisualKF(initialObservation: detection.kfRect)
             self.rect = detection.rect
-            Track.numTracks += 1
-            print("Track \(self.id) initialized. Total tracks: \(Track.numTracks)")
         }
         
         /// Permanent track constructor
@@ -139,7 +138,7 @@ extension ASD.Tracking {
                 self.kalmanFilter = VisualKF(initialObservation: CGRect.zero)
             }
             
-            self.averageAppearanceCost = costConfiguration.maxAppearanceCost / 2
+            self.appearanceCostKF.x = costConfiguration.maxAppearanceCost / 2
             self.iterationsUntilEmbeddingUpdate = trackConfiguration.iterationsPerEmbeddingUpdate
             self.configuration = trackConfiguration
             self.isPermanent = true
@@ -152,15 +151,7 @@ extension ASD.Tracking {
                 self.status = .inactive
                 self.expectedConfidence = 0
             }
-            Track.numTracks += 1
-            print("Track \(self.id) initialized. Total tracks: \(Track.numTracks)")
         }
-        
-        deinit {
-            Track.numTracks -= 1
-            print("Track \(self.id) deinitialized. Total tracks: \(Track.numTracks)")
-        }
-        
         
         // MARK: public static methods
         
@@ -254,7 +245,6 @@ extension ASD.Tracking {
             if self.status.isActive {
                 self.hits -= 1
                 if self.hits <= -self.configuration.deactivationThreshold || !self.kalmanFilter.isValid {
-                    print("deactivating track: \(self.id.uuidString.prefix(4))")
                     self.status = .inactive
                     self.kalmanFilter.deactivate()
                     self.hits = 0
@@ -287,7 +277,6 @@ extension ASD.Tracking {
         /// - Returns: intersection over union of the track's rect with `detection`'s rect
         @inline(__always)
         func iou(with detection: Detection) -> Float {
-            print("x: \(self.kalmanFilter.rect.midX), y: \(self.kalmanFilter.rect.midY), Area: \(self.kalmanFilter.scale), Aspect ratio: \(self.kalmanFilter.aspectRatio)")
             return Utils.iou(self.kalmanFilter.rect, detection.kfRect)
         }
         
@@ -316,14 +305,13 @@ extension ASD.Tracking {
                 return
             }
             
-            let alphaF = self.configuration.embeddingAlpha
+            var alpha = self.configuration.embeddingAlpha
             let sDet = detection.confidence
             let sigma = self.configuration.embeddingConfidenceThreshold
-            
-            var alpha = alphaF + (1 - alphaF) * (1 - (sDet - sigma) / (1 - sigma))
+            alpha *= (sDet - sigma) / (1.0 - sigma)
             alpha *= exp(-appearanceCost / (self.averageAppearanceCost + 1e-10))
-            
-            self.averageAppearanceCost += (appearanceCost - self.averageAppearanceCost) * alpha
+//            print(appearanceCost)
+            self.appearanceCostKF.step(measurement: appearanceCost)
             Utils.ML.updateEMA(ema: self.embedding, with: newEmbedding, alpha: alpha)
             self.iterationsUntilEmbeddingUpdate = self.configuration.iterationsPerEmbeddingUpdate
         }
