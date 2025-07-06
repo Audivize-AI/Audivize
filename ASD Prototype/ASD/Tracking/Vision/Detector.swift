@@ -50,7 +50,6 @@ extension ASD.Tracking {
                 let filteredResults: [VNRecognizedObjectObservation] = results.filter {
                     $0.confidence > self.confidenceThreshold
                 }
-                print("Face detections: \(results.count).\t Filtered face detections: \(filteredResults.count)")
                 return filteredResults
             } catch {
                 print("Failed to perform Vision request: \(error)")

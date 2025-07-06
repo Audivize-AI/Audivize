@@ -65,7 +65,6 @@ extension ASD {
         private func computeCropRect(pixelBuffer: CVPixelBuffer, rect detectionRect: CGRect) -> CGRect {
             let bufferWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
             let bufferHeight = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
-            print("Video Size:", bufferWidth, "x", bufferHeight)
             // Get detection box dimensions and center in pixels.
             let detectionWidth = detectionRect.width * bufferWidth
             let detectionHeight = detectionRect.height * bufferHeight

@@ -75,7 +75,6 @@ extension ASD.Tracking {
             
             let maxRect = CGRect(x: 0, y: 0, width: 1, height: 1)
             for (request, rect) in zip(requests, rects) {
-                
                 request.regionOfInterest = rect.intersection(maxRect)
             }
             

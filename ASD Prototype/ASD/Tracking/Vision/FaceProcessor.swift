@@ -39,12 +39,13 @@ extension ASD.Tracking {
                     width: rect.width * 1.4,
                     height: rect.height
                 )
+//                print("det: \(box.string)")
                 return Detection(rect: box, confidence: Float($0.confidence), transformer: transformer)
             })
         }
         
         public func embed(pixelBuffer: CVPixelBuffer, faces detections: OrderedSet<Detection>) {
-            let results = self.embedder.embed(faces: detections.map{$0.rect}, in: pixelBuffer)
+            let results = self.embedder.embed(faces: detections.map{ $0.rect }, in: pixelBuffer)
             
             for (i, result) in results.enumerated() {
                 detections[i].embedding = result
@@ -55,4 +56,8 @@ extension ASD.Tracking {
 
 extension CVPixelBuffer: @unchecked @retroactive Sendable {}
 
-
+extension CGRect {
+    var string: String {
+        return "Rect[(\(minX), \(minY)), (\(width), \(height))]`"
+    }
+}

@@ -14,7 +14,6 @@ extension ASD.Tracking {
         private static let xBound: Float = Float(Global.videoWidth) / 2.0
         private static let yBound: Float = Float(Global.videoHeight) / 2.0
         
-        
         // State: (x, y, s, r, vx, vy, s')
         // Measurement: (x, y, w, h)
         

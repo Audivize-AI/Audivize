@@ -193,24 +193,15 @@ extension ASD.Tracking {
             self.assignWithRLAP(&progress)
             self.applyInitialCostFilter(&progress, costFunction: self.meetsReIDCostCutoff)
             self.registerMisses(&progress, tracks: &self.activeTracks, trackStatus: .active)
-            print("assignments: \(progress.assignments.count), potential assignments: \(progress.potentialAssignments.count)")
             
             // assign inactive tracks
             progress.tracks = self.inactiveTracks
-            print("\n--- Assigning Inactive Tracks ---")
-            print("Inactive tracks to assign: \(self.inactiveTracks.map { $0.id.uuidString.prefix(4) })")
-            print("Detections available: \(progress.detections.map { $0.id.uuidString.prefix(4) })")
             self.applyInitialCostFilter(&progress, costFunction: self.meetsReIDCostCutoff)
-            print("Potential assignments for inactive tracks: \(progress.potentialAssignments.mapValues { $0.keys.map { $0.id.uuidString.prefix(4) } })")
             self.assignWithRLAP(&progress)
-            print("Assignments for inactive tracks: \(progress.assignments.map { "\( $0.id.uuidString.prefix(4)) : \($1.0.id.uuidString.prefix(4))"})")
             self.registerMisses(&progress, tracks: &self.inactiveTracks, trackStatus: .inactive)
             
             // assign pending tracks
             progress.tracks = self.pendingTracks
-            print("\n--- Assigning Pending Tracks ---")
-            print("Pending tracks to assign: \(self.pendingTracks.map { $0.id.uuidString.prefix(4) })")
-            print("detections remaining: \(progress.detections.map { $0.id.uuidString.prefix(4) })")
             self.applyInitialCostFilter(&progress, costFunction: self.meetsMotionCostCutoff)
             self.applyCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff)
             self.assignWithRLAP(&progress)
@@ -218,10 +209,10 @@ extension ASD.Tracking {
                 self.pendingTracks.remove(track)
             }
             
-            print("active:\t\(self.activeTracks.map{$0.id.uuidString.prefix(4)})")
-            print("inactive:\t\(self.inactiveTracks.map{$0.id.uuidString.prefix(4)})")
-            print("pending:\t\(self.pendingTracks.map{$0.id.uuidString.prefix(4)})")
-            print("\n-----------------------------------------------------------------\n")
+//            print("active:\t\(self.activeTracks.map{$0.id.uuidString.prefix(4)})")
+//            print("inactive:\t\(self.inactiveTracks.map{$0.id.uuidString.prefix(4)})")
+//            print("pending:\t\(self.pendingTracks.map{$0.id.uuidString.prefix(4)})")
+//            print("\n-----------------------------------------------------------------\n")
         }
         
         @inline(__always)
@@ -233,17 +224,18 @@ extension ASD.Tracking {
         @inline(__always)
         private func meetsReIDCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
             costs.appearance = track.cosineDistance(to: detection)
-            print("Re-ID Cost: track \(track.id.uuidString.prefix(4)) <-> detection \(detection.id.uuidString.prefix(4)) = \(costs.appearance)")
             return costs.appearance <= self.costConfiguration.maxReIDCost
         }
         
         @inline(__always)
         private func meetsMotionCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
             costs.iou = track.iou(with: detection)
+            if costs.iou < self.costConfiguration.minIou {
+                return false
+            }
             costs.confidence = track.confidenceCost(for: detection)
             costs.ocm = track.velocityCost(for: detection)
-            print("costs for track \(track.id.uuidString.prefix(4)) <-> detection \(detection.id.uuidString.prefix(4)): iou \(costs.iou), ocm \(costs.ocm), confidence \(costs.confidence)")
-            return costs.iou >= self.costConfiguration.minIou
+            return true
         }
         
         @inline(__always)
@@ -253,12 +245,12 @@ extension ASD.Tracking {
             }
             if costs.appearance == Float.infinity {
                 return (1 - costs.iou +
-                        costs.ocm * self.costConfiguration.ocmWeight +
+                        costs.ocm        * self.costConfiguration.ocmWeight +
                         costs.confidence * self.costConfiguration.confidenceWeight)
             }
             return (1 - costs.iou +
                     costs.appearance * self.costConfiguration.appearanceWeight +
-                    costs.ocm * self.costConfiguration.ocmWeight +
+                    costs.ocm        * self.costConfiguration.ocmWeight +
                     costs.confidence * self.costConfiguration.confidenceWeight)
         }
         
@@ -400,10 +392,6 @@ extension ASD.Tracking {
             if exitCode != 0 {
                 print("WARNING: Solver returned non-zero exit code \(exitCode)")
             }
-            
-            let mat = Matrix<Float>(rows: numTracks, columns: numDetections, elements: costMatrix)
-            print("Cost matrix:")
-            print(mat)
             
             // add assignments
             let tracks = Array(progress.potentialAssignments.keys)
