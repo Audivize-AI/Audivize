@@ -230,7 +230,7 @@
 					};
 				};
 			};
-			buildConfigurationList = D8BB08942DFB764F0058444C /* Build configuration list for PBXProject "ASD Prototype" */;
+			buildConfigurationList = D8BB08942DFB764F0058444C /* Build configuration list for PBXProject "Active Speaker Detection" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -597,7 +597,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D8BB08942DFB764F0058444C /* Build configuration list for PBXProject "ASD Prototype" */ = {
+		D8BB08942DFB764F0058444C /* Build configuration list for PBXProject "Active Speaker Detection" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D8BB08BA2DFB76510058444C /* Debug */,

@@ -51,16 +51,22 @@ extension ASD.Tracking {
             }
         }
         
+        /// - Parameters:
+        ///   - rects normalized detection bounding boxes
+        ///   - pixelBuffer image pixelBuffer
+        /// - Returns: array of embedding vectors
+        /// - Warning: assumes that `self.canEmbed(rect)` is true for all `rect`s in `rects`
         @discardableResult
-        func embed(faces rects: [CGRect], in pixelBuffer: CVPixelBuffer) -> [MLMultiArray] {
+        public func embed(faces rects: [CGRect], in pixelBuffer: CVPixelBuffer) -> [MLMultiArray] {
             self.refreshRequests(num: rects.count)
             
             let bufferWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
             let bufferHeight = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
-            let maxRect = CGRect(x: 0, y: 0, width: 1, height: 1)
             
             for (request, rect) in zip(requests, rects) {
-                let size = max(rect.width * bufferWidth, rect.height * bufferHeight)
+                let size = max(rect.width * bufferWidth,
+                               rect.height * bufferHeight)
+                
                 let width = size / bufferWidth
                 let height = size / bufferHeight
                 let halfWidth = width / 2
@@ -68,10 +74,10 @@ extension ASD.Tracking {
                 
                 request.regionOfInterest = CGRect(
                     x: rect.midX - halfWidth,
-                    y: rect.midY - halfHeight,
+                    y: 1 - (rect.midY + halfHeight),
                     width: width,
                     height: height
-                ).intersection(maxRect)
+                ).intersection(.one)
             }
             
             let usedRequests = Array(self.requests[0..<rects.count])
@@ -120,7 +126,7 @@ extension ASD.Tracking {
             
             for _ in 0..<num {
                 let r = VNCoreMLRequest(model: self.model)
-                r.imageCropAndScaleOption = .scaleFill
+                r.imageCropAndScaleOption = .scaleFit
                 self.requests.append(r)
                 self.expirations.append(expirationTime)
             }
