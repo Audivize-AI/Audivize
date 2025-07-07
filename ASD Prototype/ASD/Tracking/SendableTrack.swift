@@ -18,7 +18,7 @@ extension ASD.Tracking {
         init(_ track: Track) {
             self.id = track.id
             self.status = track.status
-            self.costString = "\(track.costs.string)\nAppearance (Average): \(track.averageAppearanceCost)"
+            self.costString = "\(track.costs.string)\nAppearance (Average): \(String(format: "%.2f", 10 * track.averageAppearanceCost))"
             self.rect = track.rect
             self.misses = -track.hits
         }
