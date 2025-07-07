@@ -136,48 +136,32 @@ extension ASD.Tracking {
         }
         
         public var isValid: Bool {
-            // check size and aspect ratio
-            if self.scale < 1e-2 || self.aspectRatio < 0 {
-                return false
-            }
-            return true
+            return self.width.isNaN == false && self.height.isNaN == false
         }
         
-//        public override var Q: Matrix<Float> {
-//            get {
-//                let size = sqrt(self.scale)
-//                let std = 0.05 * size
-//                let stdv = 0.00625 * size
-//                return .init(diagonal: [std, std, std, 0.01, stdv, stdv, stdv])
-//            }
-//            set {}
-//        }
+
         
         private var lastMeasurement: SIMD4<Float>
         private var lastObservedState: Matrix<Float>
         private var lastObservedCovariance: Matrix<Float>
         private var lastPosition2: SIMD2<Float>?
         private var lastPosition3: SIMD2<Float>?
-        private var lastMeasurementTime: UInt = 0
-        private var currentTime: UInt = 0
-        
-        private var lastN: SIMD2<Float> { lastPosition3 ?? lastPosition2 ?? lastMeasurement.lowHalf }
+        private var numMisses: UInt = 0
         
         private var computedWidth: Float
         private var computedHeight: Float
         private var velocityDirection: Float = .nan
         
+        /// - Parameter observation initial observation
         init(initialObservation observation: CGRect) {
-            self.lastMeasurementTime = 0
-            self.currentTime = 0
             self.lastObservedState = .zero
             self.lastObservedCovariance = .zero
-            self.lastMeasurement = VisualKF.convertRectToVector(observation)
+            self.lastMeasurement = VisualKF.rectToSIMD4(observation)
             self.computedWidth = Float(observation.width)
             self.computedHeight = Float(observation.height)
             
             super.init(
-                x: VisualKF.convertRectToMeasurement(observation) + [0, 0, 0],
+                x: VisualKF.rectToVector(observation) + [0, 0, 0],
                 A: Matrix(rows: [
                     [1, 0, 0, 0, 1, 0, 0],
                     [0, 1, 0, 0, 0, 1, 0],
@@ -211,40 +195,54 @@ extension ASD.Tracking {
             self.lastObservedCovariance = self.P
         }
         
-        public static func convertRectToMeasurement(_ rect: CGRect) -> [Float] {
-            return [
-                Float(rect.midX),
-                Float(rect.midY),
-                Float(rect.width * rect.height),
-                Float(rect.width / rect.height),
-            ]
-        }
-        
-        public static func convertRectToVector(_ rect: CGRect) -> SIMD4<Float> {
-            return .init(
-                x: Float(rect.midX),
-                y: Float(rect.midY),
-                z: Float(rect.width * rect.height),
-                w: Float(rect.width / rect.height),
-            )
-        }
-        
-        @inline(__always)
+        /// Predict step
         public override func predict() {
-            self.currentTime += 1
-            self.predictNoTimeUpdate()
+            // predict step
+            self.numMisses += 1
+            self.xPosition += self.xVelocity
+            self.yPosition += self.yVelocity
+            self.scale += self.growthRate
+            
+            let xBound = VisualKF.xBound + self.width / 2
+            let yBound = VisualKF.yBound + self.height / 2
+            
+            // constrain x position
+            if self.xPosition < -xBound {
+                self.xPosition = -xBound
+                self.xVelocity = 0
+            } else if self.xPosition > xBound {
+                self.xPosition = xBound
+                self.xVelocity = 0
+            }
+            
+            // constrain y position
+            if self.yPosition < -yBound {
+                self.yPosition = -yBound
+                self.yVelocity = 0
+            } else if self.yPosition > yBound {
+                self.yPosition = yBound
+                self.yVelocity = 0
+            }
+            
+            // register predict
+            self.recomputeQ()
+            self.updateCovariancePredict()
         }
         
+        /// Update step
+        /// - Parameter rect observation
         public func update(measurement: CGRect) {
-            let dt = self.currentTime - self.lastMeasurementTime
-            let z = VisualKF.convertRectToVector(measurement)
-            if dt > 1 {
+            let z = VisualKF.rectToSIMD4(measurement)
+            let numMisses = self.numMisses
+            if self.numMisses > 1 {
+                // rollback to the state after the last measurement
                 self.x = self.lastObservedState
                 self.P = self.lastObservedCovariance
-                let step = (VisualKF.convertRectToVector(measurement) - self.lastMeasurement) *
-                           (1 / Float(self.currentTime - self.lastMeasurementTime))
+                
+                // prepare to store virtual trajectory
+                let step = (z - self.lastMeasurement) * (1 / Float(numMisses))
                 var lastPositions: [SIMD2<Float>] = []
-                lastPositions.reserveCapacity(Int(dt + 3))
+                lastPositions.reserveCapacity(Int(numMisses + 3))
                 if let last2 = self.lastPosition2 {
                     if let last3 = self.lastPosition3 {
                         lastPositions.append(last3)
@@ -253,36 +251,45 @@ extension ASD.Tracking {
                 }
                 lastPositions.append(self.lastMeasurement.lowHalf)
                 
-                for _ in (self.lastMeasurementTime+1)..<self.currentTime {
+                // Observation-centric Re-Update
+                for _ in 1..<self.numMisses {
                     self.lastMeasurement += step
-                    self.predictNoTimeUpdate()
+                    self.predict()
                     self.recomputeR(from: self.lastMeasurement)
                     super.update(measurement: Matrix<Float>(self.lastMeasurement))
                     lastPositions.append(self.lastMeasurement.lowHalf)
                 }
                 
+                // update last 3 positions and velocity direction
                 self.lastPosition2 = lastPositions[lastPositions.count-1]
                 self.lastPosition3 = lastPositions[lastPositions.count-2]
                 let last4 = lastPositions[max(lastPositions.count-3, 0)]
                 self.velocityDirection = atan2(z.y - last4.y, z.x - last4.x)
-                self.predictNoTimeUpdate()
+                
+                // final predict step
+                self.predict()
             } else {
+                // update last 3 positions and velocity direction
                 let last3 = self.lastPosition3 ?? self.lastPosition2 ?? self.lastMeasurement.lowHalf
                 self.velocityDirection = atan2(z.y - last3.y, z.x - last3.x)
                 self.lastPosition3 = self.lastPosition2
                 self.lastPosition2 = self.lastMeasurement.lowHalf
             }
             
-            self.lastMeasurement = z
-            self.lastMeasurementTime = self.currentTime
+            // update step
             self.recomputeR(from: z)
             super.update(measurement: Matrix<Float>(z))
-            
             self.recomputeRect()
+            
+            // register update
             self.lastObservedState = self.x
             self.lastObservedCovariance = self.P
+            self.lastMeasurement = z
+            self.numMisses = 0
         }
         
+        /// Reset the Kalman filter with an initial measurement
+        /// - Parameter rect initial measurement
         public func activate(_ rect: CGRect) {
             self.lastPosition3 = nil
             self.lastPosition2 = nil
@@ -296,59 +303,56 @@ extension ASD.Tracking {
             self.lastObservedState = self.x
             self.lastObservedCovariance = self.P
             
-            self.lastMeasurementTime = 0
-            self.currentTime = 0
+            self.numMisses = 0
             self.velocityDirection = .nan
-            self.lastMeasurement = VisualKF.convertRectToVector(rect)
+            self.lastMeasurement = VisualKF.rectToSIMD4(rect)
         }
         
+        /// Reset the Kalman filter
         public func deactivate() {
             self.lastPosition3 = nil
             self.lastPosition2 = nil
             self.lastObservedState = .zero
             self.lastObservedCovariance = .zero
-            self.lastMeasurementTime = 0
-            self.currentTime = 0
+            self.numMisses = 0
             self.growthRate = 0
             self.xVelocity = 0
             self.yVelocity = 0
             self.velocityDirection = .nan
         }
         
+        /// OCM Cost
+        /// - Parameter rect observation
+        /// - Returns the Observation Centric Momentum (OCM) cost
         public func velocityCost(to rect: CGRect) -> Float {
             if self.velocityDirection.isNaN { return 0 }
-            let thetaIntention = atan2((Float(rect.midY) - lastN.y), (Float(rect.midX) - lastN.x))
+            let last = lastPosition3 ?? lastPosition2 ?? lastMeasurement.lowHalf
+            let thetaIntention = atan2((Float(rect.midY) - last.y), (Float(rect.midX) - last.x))
             return abs(Utils.wrap(self.velocityDirection - thetaIntention,
                                   from: -Float.pi,
                                   to: Float.pi))
         }
         
-        private func predictNoTimeUpdate() {
-            self.xPosition += self.xVelocity
-            self.yPosition += self.yVelocity
-            self.scale += self.growthRate
-            
-            let xBound = VisualKF.xBound + self.width / 2
-            let yBound = VisualKF.yBound + self.height / 2
-            
-            if self.xPosition < -xBound {
-                self.xPosition = -xBound
-                self.xVelocity = 0
-            } else if self.xPosition > xBound {
-                self.xPosition = xBound
-                self.xVelocity = 0
-            }
-            
-            if self.yPosition < -yBound {
-                self.yPosition = -yBound
-                self.yVelocity = 0
-            } else if self.yPosition > yBound {
-                self.yPosition = yBound
-                self.yVelocity = 0
-            }
-            
-            self.updateCovariancePredict()
+        // MARK: private static helpers
+        private static func rectToVector(_ rect: CGRect) -> [Float] {
+            return [
+                Float(rect.midX),
+                Float(rect.midY),
+                Float(rect.width * rect.height),
+                Float(rect.width / rect.height),
+            ]
         }
+        
+        private static func rectToSIMD4(_ rect: CGRect) -> SIMD4<Float> {
+            return .init(
+                x: Float(rect.midX),
+                y: Float(rect.midY),
+                z: Float(rect.width * rect.height),
+                w: Float(rect.width / rect.height),
+            )
+        }
+        
+        // MARK: private instance helpers
         
         @inline(__always)
         private func recomputeRect() {
@@ -358,8 +362,15 @@ extension ASD.Tracking {
         
         @inline(__always)
         private func recomputeR(from measurement: SIMD4<Float>) {
-//            let std = 0.05 * sqrt(measurement.z)
-//            self.R = .init(diagonal: [std, std, std, 0.1])
+            let std = 0.05 * self.height
+            self.R = .init(diagonal: [std, std, std, 0.1])
+        }
+        
+        @inline(__always)
+        private func recomputeQ() {
+//            let std = 0.05 * self.height
+//            let stdv = 0.00625 * self.height
+//            self.Q = .init(diagonal: [std, std, std, 0.01, stdv, stdv, stdv])
         }
     }
 }
