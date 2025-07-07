@@ -18,7 +18,7 @@
                BlueprintIdentifier = "D8BB08982DFB764F0058444C"
                BuildableName = "ASD Prototype.app"
                BlueprintName = "ASD Prototype"
-               ReferencedContainer = "container:Active Speaker Detection.xcodeproj">
+               ReferencedContainer = "container:ASD Prototype.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -38,7 +38,7 @@
                BlueprintIdentifier = "D8BB08A72DFB76510058444C"
                BuildableName = "ASD PrototypeTests.xctest"
                BlueprintName = "ASD PrototypeTests"
-               ReferencedContainer = "container:Active Speaker Detection.xcodeproj">
+               ReferencedContainer = "container:ASD Prototype.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -49,7 +49,7 @@
                BlueprintIdentifier = "D8BB08B12DFB76510058444C"
                BuildableName = "ASD PrototypeUITests.xctest"
                BlueprintName = "ASD PrototypeUITests"
-               ReferencedContainer = "container:Active Speaker Detection.xcodeproj">
+               ReferencedContainer = "container:ASD Prototype.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -72,7 +72,7 @@
             BlueprintIdentifier = "D8BB08982DFB764F0058444C"
             BuildableName = "ASD Prototype.app"
             BlueprintName = "ASD Prototype"
-            ReferencedContainer = "container:Active Speaker Detection.xcodeproj">
+            ReferencedContainer = "container:ASD Prototype.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -89,7 +89,7 @@
             BlueprintIdentifier = "D8BB08982DFB764F0058444C"
             BuildableName = "ASD Prototype.app"
             BlueprintName = "ASD Prototype"
-            ReferencedContainer = "container:Active Speaker Detection.xcodeproj">
+            ReferencedContainer = "container:ASD Prototype.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
