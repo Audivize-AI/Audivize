@@ -135,12 +135,13 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         self.asd = .init(
             atTime: currentTime,
             videoSize: Global.videoSize,
-            cameraAngle: cameraAngle
-        ) { speakers in
-            Task.detached { @MainActor in
-                self.detections = speakers
+            cameraAngle: cameraAngle,
+            onTrackComplete: { speakers in
+                Task.detached { @MainActor in
+                    self.detections = speakers
+                }
             }
-        }
+        )
         
         session.startRunning()
         

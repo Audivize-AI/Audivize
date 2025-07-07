@@ -13,33 +13,48 @@ extension ASD {
     final class ScoreBuffer: Buffer {
         typealias Element = Score
         
-        internal struct Score {
+        enum ScoreClass: Int {
+            case inactive = 0
+            case active = 1
+        }
+        
+        struct Score: Sendable {
             var cumulativeScore: Float = 0
-            var hits: UInt32 = 0
+            var updates: UInt32 = 0
             
             var score: Float {
-                return self.hits > 0 ? self.cumulativeScore / Float(self.hits) : 0
+                get { updates > 0 ? cumulativeScore / Float(updates) : 0 }
+                set { updates = max(1, updates); cumulativeScore = newValue * Float(updates) }
             }
+            
+            var scoreClass: (ScoreClass, Float) {
+                (isActive
+                 ? (.active, probability)
+                 : (.inactive, 1-probability))
+            }
+            
+            var probability: Float { 1.0 / (1.0 + exp(-cumulativeScore)) } /// sigmoid probability using cumulative score.
+            var isActive: Bool { cumulativeScore > 0 } /// whether the score is greater than 0
             
             mutating func update(with score: Float) {
-                self.cumulativeScore = score
-                self.hits += 1
+                cumulativeScore = score
+                updates += 1
             }
             
-            mutating func reset() {
-                self.cumulativeScore = 0
-                self.hits = 0
+            mutating func reset(to score: Float = 0) {
+                (cumulativeScore, updates) = (score, 1)
             }
-            
-            mutating func reset(to score: Float) {
-                self.cumulativeScore = score
-                self.hits = 1
-            }
+        }
+        
+        struct SendableState: Sendable {
+            let buffer: ContiguousArray<Score>
+            let writeIndex: Int
         }
         
         // MARK: Attributes
         
         var count: Int { self.bufferSize }
+        var data: SendableState { .init(buffer: self.buffer, writeIndex: self.writeIndex) }
         
         private var buffer: ContiguousArray<Score>
         private var writeIndex: Int
@@ -47,9 +62,14 @@ extension ASD {
         
         // MARK: Constructors
         
-        public init(atTime time: Double, capacity: Int = 53) {
+        public init(capacity: Int = 53) {
             self.writeIndex = 0
             self.buffer = .init(repeating: .init(), count: capacity)
+        }
+        
+        public init(from state: SendableState) {
+            self.buffer = state.buffer
+            self.writeIndex = state.writeIndex
         }
         
         // MARK: Subscripting

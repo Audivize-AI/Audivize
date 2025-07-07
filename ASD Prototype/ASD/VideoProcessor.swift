@@ -12,18 +12,22 @@ import AVFoundation
 
 extension ASD {
     actor VideoProcessor {
+        struct TimestampedScoreData: Sendable {
+            let scoreData: [UUID : ScoreBuffer.SendableState]
+            let timestampData: Utils.TimestampBuffer.SendableState
+        }
+        
         private struct VideoTrack {
             let videoBuffer: VideoBuffer
             let scoreBuffer: ScoreBuffer
             var track: Tracking.SendableTrack
-            
             var lastUpdateTime: Double
             
-            init(atTime time: Double, track: Tracking.SendableTrack, videoBufferPadding: Int, scoreBufferCapacity: Int) {
+            init(atTime time: Double, track: Tracking.SendableTrack) {
                 self.lastUpdateTime = time
                 self.track = track
-                self.videoBuffer = .init(frontPadding: 0, backPadding: videoBufferPadding)
-                self.scoreBuffer = .init(atTime: time, capacity: scoreBufferCapacity)
+                self.videoBuffer = .init()
+                self.scoreBuffer = .init(capacity: ASDConfiguration.scoreBufferCapacity)
             }
             
             mutating func updateVideoAndGetLastScore(atTime time: Double, from pixelBuffer: CVPixelBuffer, with track: Tracking.SendableTrack) -> Float {
@@ -43,11 +47,17 @@ extension ASD {
         
         // MARK: Public properties
         public var lastScoreTime: Double { self.scoreTimestamps.lastWriteTime }
+        public var timestampedScoreData: TimestampedScoreData {
+            .init(
+                scoreData: self.videoTracks.values.reduce(into: [:]) { result, track in
+                    result[track.track.id] = track.scoreBuffer.data
+                },
+                timestampData: self.scoreTimestamps.data
+            )
+        }
         
         // MARK: Private properties
         private let tracker: Tracking.Tracker
-        private let videoBufferPadding: Int
-        private let scoreBufferPadding: Int
         private let scoreTimestamps: Utils.TimestampBuffer
 
         private var videoTracks: [UUID: VideoTrack]
@@ -56,21 +66,17 @@ extension ASD {
         init(atTime time: Double,
              videoSize: CGSize,
              cameraAngle: CGFloat,
-             videoBufferPadding: Int = 12,
-             scoreBufferPadding: Int = 25,
-             mergeCallback mergeTracks: @escaping (MergeRequest) -> Void = { _ in })
+             mergeCallback: Tracking.Tracker.MergeCallback?)
         {
-            self.videoBufferPadding = videoBufferPadding
-            self.scoreBufferPadding = scoreBufferPadding
             self.tracker = .init(
                 faceProcessor: .init(),
                 videoSize: videoSize,
                 cameraAngle: cameraAngle,
-                mergeCallback: mergeTracks
+                onTracksMerged: mergeCallback
             )
             self.scoreTimestamps = .init(
                 atTime: time,
-                capacity: asdVideoLength + scoreBufferPadding
+                capacity: ASDConfiguration.scoreBufferCapacity
             )
             self.videoTracks = [:]
         }
@@ -86,7 +92,7 @@ extension ASD {
             
             // update videos
             for track in tracks where track.rect.width.isNaN == false {
-                let score = self.videoTracks[track.id, default: self.makeTrack(atTime: time, track: track)]
+                let score = self.videoTracks[track.id, default: .init(atTime: time, track: track)]
                     .updateVideoAndGetLastScore(atTime: time, from: pixelBuffer, with: track)
                 
                 output.append(.init(track: track,
@@ -109,34 +115,35 @@ extension ASD {
             updatedFrames.reserveCapacity(tracks.count)
             
             // update video tracks
-            for track in tracks where track.rect.width.isNaN == false {
-                updatedFrames[track.id] = self.videoTracks[track.id, default: self.makeTrack(atTime: time, track: track)]
+            for track in tracks {
+                updatedFrames[track.id] = self.videoTracks[track.id, default: .init(atTime: time, track: track)]
                     .updateTrackAndGetFrames(atTime: time, from: pixelBuffer, with: track)
             }
             
-            self.videoTracks = self.videoTracks.filter { _, speaker in
-                speaker.lastUpdateTime >= time
+            self.videoTracks = self.videoTracks.filter { _, videoTrack in
+                videoTrack.lastUpdateTime >= time
             }
             
             return updatedFrames
         }
         
-        public func updateScoresAndGetSpeakers(atTime time: Double, with scores: [UUID : MLMultiArray], orientation: Tracking.CameraOrientation) -> [SendableSpeaker] {
-            var output: [SendableSpeaker] = []
-            output.reserveCapacity(self.videoTracks.count)
+        public func updateScoresAndGetScoredSpeakers(atTime time: Double, with scores: [UUID : MLMultiArray], orientation: Tracking.CameraOrientation) -> (speakers: [SendableSpeaker], scores: TimestampedScoreData)
+        {
+            var speakers: [SendableSpeaker] = []
+            speakers.reserveCapacity(self.videoTracks.count)
             
             for (id, score) in scores {
                 if let videoTrack = self.videoTracks[id] {
                     videoTrack.scoreBuffer.write(from: score, count: 5)
-                    output.append(.init(track: videoTrack.track,
-                                        score: videoTrack.scoreBuffer[-1],
+                    speakers.append(.init(track: videoTrack.track,
+                                        score: videoTrack.scoreBuffer[-2],
                                         mirrored: orientation.isMirrored))
                 }
             }
             
             self.scoreTimestamps.write(atTime: time, count: 5)
             
-            return output
+            return (speakers: speakers, scores: self.timestampedScoreData)
         }
         
         // MARK: Getter methods
@@ -145,15 +152,6 @@ extension ASD {
             return Dictionary(uniqueKeysWithValues: self.videoTracks.map { id, speaker in
                 (id, speaker.scoreBuffer.read(at: index))
             })
-        }
-        
-        // MARK: Private helpers
-        @inline(__always)
-        private func makeTrack(atTime time: Double, track: Tracking.SendableTrack) -> VideoTrack {
-            return .init(atTime: time,
-                         track: track,
-                         videoBufferPadding: self.videoBufferPadding,
-                         scoreBufferCapacity: asdVideoLength + self.scoreBufferPadding)
         }
     }
 }
