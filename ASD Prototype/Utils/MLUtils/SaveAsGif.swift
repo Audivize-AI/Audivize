@@ -16,7 +16,7 @@ extension Utils.ML {
     /// - Parameters:
     ///   - array: The MLMultiArray with shape [1, T, H, W] (Float32-compatible).
     ///   - fileName: Name for the GIF file (e.g. "output.gif").
-    static func saveMultiArrayAsGIF(_ array: MLMultiArray, fileName: String) {
+    static func saveMultiArrayAsGIF(_ array: MLMultiArray, to: String) {
         // Validate shape
         let shape = array.shape.map { $0.intValue }
         guard shape.count == 4, shape[0] == 1 else {
@@ -60,7 +60,7 @@ extension Utils.ML {
 
         // Determine output URL in Documents
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let gifURL = docs.appendingPathComponent(fileName)
+        let gifURL = docs.appendingPathComponent(to)
 
         // Create GIF
         guard let dest = CGImageDestinationCreateWithURL(gifURL as CFURL, kUTTypeGIF, frames.count, nil) else {
