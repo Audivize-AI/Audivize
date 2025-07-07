@@ -138,8 +138,9 @@ class DrawingView: UIView {
             // write the ID above the rectangle
             let idText = face.string as NSString
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 12),
-                .foregroundColor: UIColor.green
+                .font: UIFont.systemFont(ofSize: 24),
+                .foregroundColor: UIColor.white,
+                .backgroundColor: UIColor.black
             ]
 
             let textSize = idText.size(withAttributes: attributes)
@@ -210,8 +211,6 @@ struct CameraPreview: UIViewRepresentable {
     }
 }
 
-// The ContentView becomes very clean, as all the complex drawing logic
-// is now encapsulated in the CameraPreview representable.
 struct ContentView: View {
     @StateObject private var cameraManager = AVManager(cameraAngle: ContentView.getCameraAngle())
     
