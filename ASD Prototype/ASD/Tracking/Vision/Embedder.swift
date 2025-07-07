@@ -13,38 +13,19 @@ import ImageIO
 extension ASD.Tracking {
     final class FaceEmbedder {
         private let model: VNCoreMLModel
-        private let minReadyRequests: Int
-        private let requestLifespan: DispatchTimeInterval
         private var requests: [VNCoreMLRequest]
         private var expirations: [DispatchTime]
         
-        init(verbose: Bool = false,
-             requestLifespan: DispatchTimeInterval = embedderRequestLifespan,
-             minReadyRequests: Int = minReadyEmbedderRequests)
-        {
-            self.requestLifespan = requestLifespan
-            self.minReadyRequests = minReadyRequests
+        init() {
             self.requests = []
             self.expirations = []
-            self.requests.reserveCapacity(minReadyRequests * 2)
-            self.expirations.reserveCapacity(minReadyRequests)
+            self.requests.reserveCapacity(FaceProcessingConfiguration.minReadyEmbedderRequests * 2)
+            self.expirations.reserveCapacity(FaceProcessingConfiguration.minReadyEmbedderRequests)
+           
+            let mlModel = try! MobileFaceNet(configuration: MLModelConfiguration())
+            self.model = try! VNCoreMLModel(for: mlModel.model)
             
-            if verbose {
-                print("Loading Face Embedder model...")
-            }
-            
-            do {
-                let mlModel = try MobileFaceNet(configuration: MLModelConfiguration())
-                self.model = try VNCoreMLModel(for: mlModel.model)
-            } catch {
-                fatalError("Failed to load Face Embedder model: \(error.localizedDescription)")
-            }
-            
-            if verbose {
-                print("Loaded Face Embedder model\n")
-            }
-            
-            for _ in 0..<minReadyRequests {
+            for _ in 0..<FaceProcessingConfiguration.minReadyEmbedderRequests {
                 let r = VNCoreMLRequest(model: self.model)
                 r.imageCropAndScaleOption = .scaleFill
                 self.requests.append(r)
@@ -98,14 +79,14 @@ extension ASD.Tracking {
         
         @inline(__always)
         private func refreshRequests(num: Int) {
-            let expirationTime = DispatchTime.now() + self.requestLifespan
+            let expirationTime = DispatchTime.now() + FaceProcessingConfiguration.embedderRequestLifespan
             
             // if we are adding more requests then the other requests are also about to get used
             
             let numToAdd = num - self.requests.count
             if numToAdd <= 0 {
                 /// The first `minReadyRequests` requests don't have an expiration clock. Only refresh the clocks for those that come after them.
-                let numToRefresh = num - self.minReadyRequests
+                let numToRefresh = num - FaceProcessingConfiguration.minReadyEmbedderRequests
                 if numToRefresh > 0 {
                     for i in (0..<numToRefresh) {
                         self.expirations[i] = expirationTime

@@ -12,16 +12,15 @@ extension ASD.Tracking {
         // activation, confirmation, and deletion
         static let confirmationThreshold: Int                   = 15
         static let activationThreshold: Int                     = 2
-        static let deactivationThreshold: Int                   = 8
+        static let deactivationThreshold: Int                   = 20
         static let deletionThreshold: Int                       = 10 * 30
         
         // embedding updates
         static let iterationsPerEmbeddingUpdate: Int            = 4
-        
         static let embeddingConfidenceThreshold: Float          = 0.7
         static let embeddingAlpha: Float                        = 1 - pow(0.333, embeddingDt)
-        static let appearanceCostVariance: Float                = 0.004 * sqrt(embeddingDt)
-        static let appearanceCostMeasurementVariance: Float     = 0.0067
+        static let appearanceCostVariance: Float                = 0.006 * embeddingDt
+        static let appearanceCostMeasurementVariance: Float     = 0.006
         
         // missed track updates
         static let velocityDamping: Float                       = pow(0.5, dt)

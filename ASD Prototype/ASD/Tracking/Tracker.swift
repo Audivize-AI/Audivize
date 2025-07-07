@@ -16,6 +16,8 @@ import CoreML
 extension ASD.Tracking {
     final class Tracker {
         // MARK: structs and enums
+        typealias MergeCallback = (ASD.MergeRequest) -> Void
+        
         enum TrackerError: Error {
             case rlapInvalidCostMatrix
             case rlapInfeasibleCostMatrix
@@ -41,15 +43,12 @@ extension ASD.Tracking {
         }
         
         // MARK: private properties
-        private let mergeTracks: (ASD.MergeRequest) -> Void
+        private let mergeCallback: MergeCallback?
         private let faceProcessor: FaceProcessor
         
         private var activeTracks: OrderedSet<Track>
         private var pendingTracks: OrderedSet<Track>
         private var inactiveTracks: OrderedSet<Track>
-        
-        private var costConfiguration: CostConfiguration
-        private var trackConfiguration: TrackConfiguration
         
         private var screenWidth: Int = 0
         private var screenHeight: Int = 0
@@ -61,9 +60,7 @@ extension ASD.Tracking {
              videoSize: CGSize,
              cameraAngle: CGFloat,
              mirrored: Bool = false,
-             costConfiguration: CostConfiguration = .init(),
-             trackConfiguration: TrackConfiguration = .init(),
-             mergeCallback mergeTracks: @escaping (ASD.MergeRequest) -> Void = { _ in })
+             onTracksMerged mergeCallback: MergeCallback? = nil)
         {
             self.cameraTransformer = .init(orientation: .init(angle: cameraAngle, mirrored: mirrored),
                                            width: videoSize.width,
@@ -73,9 +70,7 @@ extension ASD.Tracking {
             self.activeTracks = []
             self.inactiveTracks = []
             self.pendingTracks = []
-            self.costConfiguration = costConfiguration
-            self.trackConfiguration = trackConfiguration
-            self.mergeTracks = mergeTracks
+            self.mergeCallback = mergeCallback
         }
         
         // MARK: public methods
@@ -109,19 +104,18 @@ extension ASD.Tracking {
             // create new tracks for unmatched detections
             for detection in progress.detections {
                 do {
-                    let track = try Track(detection: detection,
-                                          transformer: self.cameraTransformer,
-                                          trackConfiguration: self.trackConfiguration,
-                                          costConfiguration: self.costConfiguration)
+                    let track = try Track(detection: detection, transformer: self.cameraTransformer)
                     self.pendingTracks.append(track)
                 } catch {
                     print("Failed to create new track: \(error)")
                 }
             }
             
-            return self.activeTracks.map(SendableTrack.init) + self.pendingTracks.map(SendableTrack.init)
+            return (self.activeTracks.map(SendableTrack.init) +
+                    self.pendingTracks
+                        .filter{$0.hits >= TrackingConfiguration.activationThreshold}
+                        .map(SendableTrack.init))
         }
-        
         
         /// Add a permanent track to the tracker
         /// - Parameters:
@@ -133,8 +127,6 @@ extension ASD.Tracking {
             let track = try Track(id: id,
                                   embedding: embedding,
                                   transformer: self.cameraTransformer,
-                                  trackConfiguration: self.trackConfiguration,
-                                  costConfiguration: self.costConfiguration,
                                   detection: detection)
             if track.status.isActive {
                 self.activeTracks.append(track)
@@ -218,40 +210,24 @@ extension ASD.Tracking {
         @inline(__always)
         private func meetsAppearanceCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
             costs.appearance = track.cosineDistance(to: detection)
-            return costs.appearance <= self.costConfiguration.maxAppearanceCost
+            return costs.appearance <= TrackingConfiguration.maxAppearanceCost
         }
         
         @inline(__always)
         private func meetsReIDCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
             costs.appearance = track.cosineDistance(to: detection)
-            return costs.appearance <= self.costConfiguration.maxReIDCost
+            return costs.appearance <= TrackingConfiguration.maxReIDCost
         }
         
         @inline(__always)
         private func meetsMotionCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
             costs.iou = track.iou(with: detection)
-            if costs.iou < self.costConfiguration.minIou {
+            if costs.iou < TrackingConfiguration.minIou {
                 return false
             }
             costs.confidence = track.confidenceCost(for: detection)
             costs.ocm = track.velocityCost(for: detection)
             return true
-        }
-        
-        @inline(__always)
-        private func heuristicCost(costs: Costs) -> Float {
-            if costs.iou == Float.infinity {
-                return costs.appearance
-            }
-            if costs.appearance == Float.infinity {
-                return (1 - costs.iou +
-                        costs.ocm        * self.costConfiguration.ocmWeight +
-                        costs.confidence * self.costConfiguration.confidenceWeight)
-            }
-            return (1 - costs.iou +
-                    costs.appearance * self.costConfiguration.appearanceWeight +
-                    costs.ocm        * self.costConfiguration.ocmWeight +
-                    costs.confidence * self.costConfiguration.confidenceWeight)
         }
         
         /// Looks at all possible (Track, Detection) pairings and determines which ones meet the cost cutoffs.
@@ -357,16 +333,13 @@ extension ASD.Tracking {
             var numDetections = 0
             
             for (_, detections) in progress.potentialAssignments {
-                for (detection, costs) in detections {
+                for detection in detections.keys {
                     // index the detection
                     if detectionIndices[detection] == nil {
                         detectionIndices[detection] = numDetections
                         detectionArray.append(detection)
                         numDetections += 1
                     }
-                    
-                    // compute total cost
-                    costs.total = heuristicCost(costs: costs)
                 }
             }
             
@@ -461,7 +434,7 @@ extension ASD.Tracking {
         @discardableResult
         private func mergeInactiveTrack(_ track: Track, tracks: [Track]) -> Bool {
             var bestMatch: Track?
-            var minCost: Float = self.costConfiguration.maxReIDCost.nextUp
+            var minCost: Float = TrackingConfiguration.maxReIDCost.nextUp
             
             for other in tracks {
                 if other == track {
@@ -476,7 +449,7 @@ extension ASD.Tracking {
             }
             
             if let targetID = bestMatch?.id {
-                self.mergeTracks(.init(from: track.id, into: targetID))
+                self.mergeCallback?(.init(from: track.id, into: targetID))
                 //print("merged \(track.id) into \(bestMatch!.id)")
                 return true
             }

@@ -20,12 +20,9 @@ extension ASD.Tracking {
         
         // MARK: public methods
         
-        init (verbose: Bool = false,
-              detectorConfidenceThreshold: Float = detectorConfidenceThreshold,
-              embedderRequestLifespan: DispatchTimeInterval = embedderRequestLifespan,
-              minReadyEmbedderRequests: Int = minReadyEmbedderRequests) {
-            self.detector = FaceDetector(verbose: verbose, confidenceThreshold: detectorConfidenceThreshold)
-            self.embedder = FaceEmbedder(verbose: verbose, requestLifespan: embedderRequestLifespan, minReadyRequests: minReadyEmbedderRequests)
+        init() {
+            self.detector = FaceDetector()
+            self.embedder = FaceEmbedder()
         }
         
         public func detect(pixelBuffer: CVPixelBuffer, transformer: CameraCoordinateTransformer) -> OrderedSet<Detection> {
@@ -34,9 +31,9 @@ extension ASD.Tracking {
             return OrderedSet(results.map {
                 let rect = $0.boundingBox
                 let box = CGRect(
-                    x: rect.minX - rect.width * 0.2,
+                    x: rect.minX,
                     y: 1 - rect.maxY,
-                    width: rect.width * 1.4,
+                    width: rect.width,
                     height: rect.height
                 )
 //                print("det: \(box.string)")
@@ -45,19 +42,13 @@ extension ASD.Tracking {
         }
         
         public func embed(pixelBuffer: CVPixelBuffer, faces detections: OrderedSet<Detection>) {
-            let results = self.embedder.embed(faces: detections.map{ $0.rect }, in: pixelBuffer)
-            
-            for (i, result) in results.enumerated() {
-                detections[i].embedding = result
+            let results = self.embedder.embed(faces: detections.map{ $0.rect },
+                                              in: pixelBuffer)
+            for (det, result) in zip(detections, results) {
+                det.embedding = result
             }
         }
     }
 }
 
 extension CVPixelBuffer: @unchecked @retroactive Sendable {}
-
-extension CGRect {
-    var string: String {
-        return "Rect[(\(minX), \(minY)), (\(width), \(height))]`"
-    }
-}

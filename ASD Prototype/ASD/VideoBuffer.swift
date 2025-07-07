@@ -22,26 +22,17 @@ extension ASD {
             case convertFailed(vImage_Error)
         }
         
-        public let frameSize: CGSize
         public private(set) var cropRect: CGRect
         
-        private let cropScale: CGFloat
-        
-        init(frontPadding: Int = 0,
-             backPadding: Int = 25,
-             cropPadding: CGFloat = asdCropPadding,
-             length: Int = asdVideoLength,
-             frameSize: CGSize = asdFrameSize)
-        {
-            self.cropScale = cropPadding
-            self.frameSize = frameSize
+        init() {
             self.cropRect = .zero
+            let frameSize = ASDConfiguration.frameSize
             super.init(
                 chunkShape: [Int(frameSize.width), Int(frameSize.height)],
                 defaultChunk: .init(repeating: 110, count: Int(frameSize.width * frameSize.height)),
-                length: length,
-                frontPadding: frontPadding,
-                backPadding: backPadding
+                length: ASDConfiguration.videoLength,
+                frontPadding: ASDConfiguration.videoBufferFrontPadding,
+                backPadding: ASDConfiguration.videoBufferBackPadding
             )
         }
         
@@ -52,7 +43,7 @@ extension ASD {
                     do {
                         try VideoBuffer.preprocessImage(pixelBuffer: pixelBuffer,
                                                         cropTo: cropRect,
-                                                        resizeTo: self.frameSize,
+                                                        resizeTo: ASDConfiguration.frameSize,
                                                         to: $0.baseAddress!)
                     } catch {
                         fatalError(error.localizedDescription)
@@ -72,7 +63,7 @@ extension ASD {
             let detectionCenterY = detectionRect.midY * bufferHeight
 
             let bs = max(detectionWidth, detectionHeight) / 2.0 // box size
-            let cs = self.cropScale
+            let cs = ASDConfiguration.cropScale
             
             let finalSideLength = bs * (1.0 + cs)
             let finalHalfSide = finalSideLength / 2.0

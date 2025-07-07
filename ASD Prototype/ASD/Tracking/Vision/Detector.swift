@@ -14,30 +14,13 @@ import ImageIO
 extension ASD.Tracking {
     final class FaceDetector {
         private let model: VNCoreMLModel
-        private let confidenceThreshold: Float
         private let request: VNCoreMLRequest
         
-        init(verbose: Bool = false,
-             confidenceThreshold: Float = detectorConfidenceThreshold)
-        {
-            if verbose {
-                print("Loading Face Detector model...")
-            }
-            
-            do {
-                let mlModel = try YOLOv11n(configuration: MLModelConfiguration())
-                self.model = try VNCoreMLModel(for: mlModel.model)
-            } catch {
-                fatalError("Failed to load Face Detector model: \(error.localizedDescription)")
-            }
-            
-            if verbose {
-                print("Loaded Face Detector model\n")
-            }
-            
+        init() {
+            let mlModel = try! YOLOv11n(configuration: MLModelConfiguration())
+            self.model = try! VNCoreMLModel(for: mlModel.model)
             self.request = VNCoreMLRequest(model: self.model)
             self.request.imageCropAndScaleOption = .scaleFit
-            self.confidenceThreshold = confidenceThreshold
         }
         
         @discardableResult
@@ -48,7 +31,7 @@ extension ASD.Tracking {
                 try handler.perform([self.request])
                 guard let results = request.results as? [VNRecognizedObjectObservation] else { return [] }
                 let filteredResults: [VNRecognizedObjectObservation] = results.filter {
-                    $0.confidence > self.confidenceThreshold
+                    $0.confidence > FaceProcessingConfiguration.minDetectionConfidence
                 }
                 return filteredResults
             } catch {

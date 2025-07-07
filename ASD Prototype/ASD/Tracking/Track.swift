@@ -60,7 +60,7 @@ extension ASD.Tracking {
         
         // MARK: public computed properties
         public var isDeletable: Bool {
-            return (self.status.isPending && self.hits <= 0) || (self.isPermanent == false && self.hits <= -self.configuration.deletionThreshold)
+            return (self.status.isPending && self.hits <= 0) || (self.isPermanent == false && self.hits <= -TrackingConfiguration.deletionThreshold)
         }
         
         public var needsEmbeddingUpdate: Bool {
@@ -76,7 +76,6 @@ extension ASD.Tracking {
         }
         
         // MARK: private properties
-        private let configuration: TrackConfiguration
         private let cameraTransformer: CameraCoordinateTransformer
         private let kalmanFilter: VisualKF
         
@@ -84,8 +83,7 @@ extension ASD.Tracking {
         private var lastConfidence: Float?
         private var lastConfidence2: Float?
         
-        //Q: 0.006
-        private var appearanceCostKF: UnivariateKF = .init(x: 0, Q: 1e-10, R: 0.0045)
+        private var appearanceCostKF: UnivariateKF
         
         // MARK: constructors
         
@@ -95,21 +93,26 @@ extension ASD.Tracking {
         /// - Parameter costConfiguration: costConfiguration of parent tracker
         /// - Throws: `TrackInitializationError.missingEmbedding` when `detection`'s embedding is `nil`
         public init(detection: Detection,
-                    transformer: CameraCoordinateTransformer,
-                    trackConfiguration: TrackConfiguration,
-                    costConfiguration: CostConfiguration) throws {
+                    transformer: CameraCoordinateTransformer) throws {
             guard let embedding = detection.embedding else {
                 throw TrackInitializationError.missingEmbedding
             }
+            
             self.embedding = embedding
-            self.appearanceCostKF.x = costConfiguration.maxAppearanceCost / 2 // conservative estimate
-            self.iterationsUntilEmbeddingUpdate = trackConfiguration.iterationsPerEmbeddingUpdate
-            self.configuration = trackConfiguration
+            self.iterationsUntilEmbeddingUpdate = TrackingConfiguration.iterationsPerEmbeddingUpdate
+            
+            self.appearanceCostKF = UnivariateKF(
+                x: TrackingConfiguration.maxAppearanceCost / 2, // conservative estimate
+                Q: TrackingConfiguration.appearanceCostVariance,
+                R: TrackingConfiguration.appearanceCostMeasurementVariance
+            )
+            
+            self.kalmanFilter = VisualKF(initialObservation: detection.kfRect)
+            self.cameraTransformer = transformer
+            self.rect = detection.rect
+            
             self.lastConfidence = detection.confidence
             self.expectedConfidence = detection.confidence
-            self.cameraTransformer = transformer
-            self.kalmanFilter = VisualKF(initialObservation: detection.kfRect)
-            self.rect = detection.rect
         }
         
         /// Permanent track constructor
@@ -122,8 +125,6 @@ extension ASD.Tracking {
         public init(id: UUID,
                     embedding: MLMultiArray,
                     transformer: CameraCoordinateTransformer,
-                    trackConfiguration: TrackConfiguration,
-                    costConfiguration: CostConfiguration,
                     detection: Detection? = nil) throws {
             if embedding.shape.last != 128 || embedding.count != 128 {
                 throw TrackInitializationError.embeddingDimensionMismatch
@@ -139,9 +140,13 @@ extension ASD.Tracking {
                 self.kalmanFilter = VisualKF(initialObservation: CGRect.zero)
             }
             
-            self.appearanceCostKF.x = costConfiguration.maxAppearanceCost / 2
-            self.iterationsUntilEmbeddingUpdate = trackConfiguration.iterationsPerEmbeddingUpdate
-            self.configuration = trackConfiguration
+            self.appearanceCostKF = UnivariateKF(
+                x: TrackingConfiguration.maxAppearanceCost / 2, // conservative estimate
+                Q: TrackingConfiguration.appearanceCostVariance,
+                R: TrackingConfiguration.appearanceCostMeasurementVariance
+            )
+            
+            self.iterationsUntilEmbeddingUpdate = TrackingConfiguration.iterationsPerEmbeddingUpdate
             self.isPermanent = true
             if let detection = detection {
                 self.expectedConfidence = detection.confidence
@@ -189,19 +194,17 @@ extension ASD.Tracking {
         /// - Parameter costs: `Costs` object associated with the assignment.
         func registerHit(with detection: Detection, costs: Costs) {
             // register hit
+            var wasKfActivated = false
             
             if !self.status.isActive {
-                if self.hits < 0 {
-                    self.hits = 1
-                } else {
-                    self.hits += 1
-                }
+                if self.hits < 0 { self.hits = 1 }
+                else { self.hits += 1 }
                 
                 // check if the track is ready for activation
                 let threshold = (
-                    self.status.isPending ?
-                    self.configuration.confirmationThreshold :
-                    self.configuration.activationThreshold
+                    self.status.isPending
+                        ? TrackingConfiguration.confirmationThreshold
+                        : TrackingConfiguration.activationThreshold
                 )
                 
                 if self.hits >= threshold {
@@ -210,18 +213,24 @@ extension ASD.Tracking {
                         self.kalmanFilter.activate(detection.kfRect)
                         self.rect = detection.rect
                         self.status = .active
-                    } else {
-                        // update state
-                        self.kalmanFilter.update(measurement: detection.kfRect)
+                        wasKfActivated = true
                     }
                     self.status = .active
                 }
             } else {
                 self.hits = 0
+            }
+            
+            if self.kalmanFilter.isValid == false {
+                self.kalmanFilter.activate(detection.kfRect)
+                self.rect = detection.rect
+                wasKfActivated = true
+            } else if wasKfActivated == false {
                 // update state
                 self.kalmanFilter.update(measurement: detection.kfRect)
                 self.rect = self.cameraTransformer.toTrackCoordinates(self.kalmanFilter.rect)
             }
+            print("\(self.shortString): valid = \(self.kalmanFilter.isValid), kf rect = \(self.kalmanFilter.rect), rect = \(self.rect), detection: \(detection.rect)")
             
             // update confidence
             self.lastConfidence2 = self.lastConfidence
@@ -245,14 +254,14 @@ extension ASD.Tracking {
         func registerMiss() {
             if self.status.isActive {
                 self.hits -= 1
-                if self.hits <= -self.configuration.deactivationThreshold || !self.kalmanFilter.isValid {
+                if self.hits <= -TrackingConfiguration.deactivationThreshold || !self.kalmanFilter.isValid {
                     self.status = .inactive
                     self.kalmanFilter.deactivate()
                     self.hits = 0
                 } else {
-                    self.kalmanFilter.xVelocity *= self.configuration.velocityDamping
-                    self.kalmanFilter.yVelocity *= self.configuration.velocityDamping
-                    self.kalmanFilter.growthRate *= self.configuration.growthDamping
+                    self.kalmanFilter.xVelocity *= TrackingConfiguration.velocityDamping
+                    self.kalmanFilter.yVelocity *= TrackingConfiguration.velocityDamping
+                    self.kalmanFilter.growthRate *= TrackingConfiguration.growthDamping
                 }
             } else if self.status.isInactive {
                 self.hits -= 1
@@ -299,22 +308,23 @@ extension ASD.Tracking {
         /// - Parameter detection: detection object that was assigned to this track
         /// - Parameter appearanceCost: appearance cost of the assignment
         func updateEmbedding(detection: Detection, appearanceCost: Float) {
-            if detection.confidence < self.configuration.embeddingConfidenceThreshold {
+            // confidence cutoff
+            let conf = detection.confidence
+            let minConf = TrackingConfiguration.embeddingConfidenceThreshold
+            if conf < minConf {
                 return
             }
+            
             guard let newEmbedding = detection.embedding else {
                 return
             }
             
-            var alpha = self.configuration.embeddingAlpha
-            let sDet = detection.confidence
-            let sigma = self.configuration.embeddingConfidenceThreshold
-            alpha *= (sDet - sigma) / (1.0 - sigma)
+            var alpha = TrackingConfiguration.embeddingAlpha
+            alpha *= (conf - minConf) / (1.0 - minConf)
             alpha *= exp(-appearanceCost / (self.averageAppearanceCost + 1e-10))
-//            print(appearanceCost)
             self.appearanceCostKF.step(measurement: appearanceCost)
             Utils.ML.updateEMA(ema: self.embedding, with: newEmbedding, alpha: alpha)
-            self.iterationsUntilEmbeddingUpdate = self.configuration.iterationsPerEmbeddingUpdate
+            self.iterationsUntilEmbeddingUpdate = TrackingConfiguration.iterationsPerEmbeddingUpdate
         }
     }
 }
