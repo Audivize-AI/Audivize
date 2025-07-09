@@ -84,7 +84,7 @@ extension ASD {
             }
             self.videoTimestamps.write(atTime: time)
             return self.speakers.values.map { speaker in
-                    .init(track: speaker.track, score: speaker.scoreBuffer.read(at: -1), rect: speaker.videoBuffer.cropRect)
+                    .init(track: speaker.track, score: speaker.scoreBuffer.read(at: -12), rect: speaker.videoBuffer.cropRect)
             }
         }
         

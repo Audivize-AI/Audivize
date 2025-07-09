@@ -52,7 +52,7 @@ extension ASD.Tracking {
             
             let usedRequests = Array(self.requests[0..<rects.count])
             
-            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation)
+            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer)
             
             do {
                 try handler.perform(usedRequests)

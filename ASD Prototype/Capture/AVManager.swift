@@ -31,7 +31,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     private var asd: ASD.ASD?
         
     override init() {
-        self.videoSize = CGSize(width: 720, height: 1280)
+        self.videoSize = CGSize(width: 1920, height: 1080)
         super.init()
         // Asynchronously check permissions and then set up the session
         sessionQueue.async {
@@ -42,15 +42,15 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
     
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        do {
-            try self.asd?.update(videoSample: sampleBuffer, connection: connection)
-        } catch {
-            print("Video Error: \(error)")
+        if output is AVCaptureVideoDataOutput {
+            do {
+                try self.asd?.update(videoSample: sampleBuffer, connection: connection)
+            } catch {
+                print("Video Error: \(error)")
+            }
+        } else {
+            self.asd?.updateAudio(audioSample: sampleBuffer)
         }
-//        if output is AVCaptureVideoDataOutput {
-//        } else {
-//            self.asd?.updateAudio(audioSample: sampleBuffer)
-//        }
     }
     
     // Public methods to control session from the UI. These are useful for app lifecycle events.
@@ -116,10 +116,10 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         // This method should only be called from the sessionQueue
         
         let session = AVCaptureSession()
-        session.sessionPreset = .hd1280x720
+        session.sessionPreset = .hd1920x1080
         
         self.setupCamera(for: session)
-        //self.setupMicrophone(for: session)
+        self.setupMicrophone(for: session)
         
         let currentTime = CMClockGetTime(session.synchronizationClock!).seconds
         self.asd = .init(atTime: currentTime) { speakers in
@@ -142,6 +142,11 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
             print("Error: No back camera found.")
             return
         }
+        
+        try? videoCaptureDevice.lockForConfiguration()
+        videoCaptureDevice.videoZoomFactor = videoCaptureDevice.minAvailableVideoZoomFactor
+        videoCaptureDevice.unlockForConfiguration()
+        
         
         do {
             let input = try AVCaptureDeviceInput(device: videoCaptureDevice)
@@ -168,13 +173,15 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
             // Use the new API on iOS 17 and later
             if #available(iOS 17.0, *) {
                 // To set portrait orientation, we check for and set a 90-degree rotation.
-                if connection.isVideoRotationAngleSupported(90) {
-                    connection.videoRotationAngle = 90
+                if connection.isVideoRotationAngleSupported(180) {
+                    connection.videoRotationAngle = 180
+                } else {
+                    print("Error: Video rotation angle not supported")
                 }
             } else {
                 // Fallback for earlier iOS versions
                 if connection.isVideoOrientationSupported {
-                    connection.videoOrientation = .portrait
+                    connection.videoOrientation = .landscapeLeft
                 }
             }
         }

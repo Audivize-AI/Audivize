@@ -16,7 +16,7 @@ extension Utils.ML {
     /// - Parameters:
     ///   - array: The MLMultiArray with shape [1, T, H, W] (Float32-compatible).
     ///   - fileName: Name for the GIF file (e.g. "output.gif").
-    func saveMultiArrayAsGIF(_ array: MLMultiArray, fileName: String) {
+    static func saveMultiArrayAsGIF(_ array: MLMultiArray, fileName: String) {
         // Validate shape
         let shape = array.shape.map { $0.intValue }
         guard shape.count == 4, shape[0] == 1 else {

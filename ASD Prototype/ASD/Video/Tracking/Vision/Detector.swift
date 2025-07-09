@@ -32,7 +32,7 @@ extension ASD.Tracking {
         
         @discardableResult
         func detect(in pixelBuffer: CVPixelBuffer, orientation: CGImagePropertyOrientation) -> [VNRecognizedObjectObservation] {
-            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation)
+            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer)
             
             do {
                 try handler.perform([self.request])

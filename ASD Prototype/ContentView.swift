@@ -156,6 +156,7 @@ struct CameraPreview: UIViewRepresentable {
         
         // Store the views in the coordinator to update them later
         context.coordinator.previewLayer = previewLayer
+        context.coordinator.previewLayer?.connection?.videoRotationAngle = 0
         context.coordinator.drawingView = drawingView
         
         return view
@@ -165,6 +166,7 @@ struct CameraPreview: UIViewRepresentable {
         // Update session if it's newly available
         if context.coordinator.previewLayer?.session == nil, let session = cameraManager.captureSession {
             context.coordinator.previewLayer?.session = session
+            context.coordinator.previewLayer?.connection?.videoRotationAngle = 180
         }
         
         // Update layer frames on size change
@@ -174,6 +176,7 @@ struct CameraPreview: UIViewRepresentable {
         // Pass the latest bounding boxes to the drawing view
         // The drawingView will automatically redraw itself when this property is set.
         context.coordinator.drawingView?.faces = cameraManager.detections
+        
     }
     
     func makeCoordinator() -> Coordinator {

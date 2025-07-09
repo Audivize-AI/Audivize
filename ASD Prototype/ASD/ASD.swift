@@ -14,19 +14,20 @@ extension ASD {
     final class ASD {
         public private(set) var speakers: [SpeakerData]
         
-        //private let audioEncoder: AudioEncoder
+        private let audioEncoder: AudioEncoder
         private let videoProcessor: VideoProcessor
-        //private var lastAudioTime: Double
+        private var lastAudioTime: Double
         private var lastVideoTime: Double
         private var frameSkipCounter: Int = 0
+        private var gifCounter: Int = 0
         
         private let onFused: @Sendable ([SpeakerData]) async -> Void
-        private let modelPool: Utils.ML.ModelPool<ASDVideoModel>
+        private let modelPool: Utils.ML.ModelPool<ASDModel>
         
         init(atTime time: Double, onFused: @Sendable @escaping ([SpeakerData]) async -> Void, numModels: Int = 6, backtrackFrames: Int = 25, audioBufferPadding: Int = 25, videoBufferPadding: Int = 24) {
             self.videoProcessor = .init(atTime: time, backtrackFrames: backtrackFrames, videoBufferPadding: videoBufferPadding)
-            //self.audioEncoder = .init(atTime: time, frontPadding: backtrackFrames, backPadding: audioBufferPadding)
-            //self.lastAudioTime = time
+            self.audioEncoder = .init(atTime: time, frontPadding: backtrackFrames, backPadding: audioBufferPadding)
+            self.lastAudioTime = time
             self.lastVideoTime = time
             self.frameSkipCounter = 0
             self.speakers = []
@@ -38,22 +39,22 @@ extension ASD {
             }
         }
         
-//        public func updateAudio(audioSample sampleBuffer: CMSampleBuffer) {
-////            let start = Date()
-//            let audioEncoder = self.audioEncoder
-//            let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
-//            let signal = resampleAudioToFloat32(from: sampleBuffer, to: 16_000)
-//            
-//            Task.detached {
-//                await audioEncoder.update(atTime: time, from: signal)
-//            }
-//            
-//            self.lastAudioTime = time
-//            
-////            let end = Date()
-////            let elapsed = end.timeIntervalSince(start)  // in seconds (Double)
-////            print("AudioUpdate: \(elapsed * 1000) ms")
-//        }
+        public func updateAudio(audioSample sampleBuffer: CMSampleBuffer) {
+//            let start = Date()
+            let audioEncoder = self.audioEncoder
+            let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+            let signal = resampleAudioToFloat32(from: sampleBuffer, to: 16_000)
+            
+            Task.detached {
+                await audioEncoder.update(atTime: time, from: signal)
+            }
+            
+            self.lastAudioTime = time
+            
+//            let end = Date()
+//            let elapsed = end.timeIntervalSince(start)  // in seconds (Double)
+//            print("AudioUpdate: \(elapsed * 1000) ms")
+        }
         
         public func update(videoSample sampleBuffer: CMSampleBuffer, connection: AVCaptureConnection) throws {
             let start = Date()
@@ -68,16 +69,18 @@ extension ASD {
             if isVideoUpdate == false {
                 self.frameSkipCounter = 0
                 self.lastVideoTime = time
+                self.gifCounter += 1
                 print("skipping video update")
             } else {
                 print("updating video")
             }
             
-            let asdTime = self.lastVideoTime //min(self.lastVideoTime, self.lastAudioTime)
+            let asdTime = min(self.lastVideoTime, self.lastAudioTime)
             let videoProcessor = self.videoProcessor
-            //let audioEncoder = self.audioEncoder
+            let audioEncoder = self.audioEncoder
             let callback = self.onFused
             let modelPool = self.modelPool
+            let gifCounter = self.gifCounter
             
             Task.detached {
                 if isVideoUpdate {
@@ -88,16 +91,22 @@ extension ASD {
                     await callback(res)
                 } else {
                     async let _ = videoProcessor.updateVideos(atTime: time, from: pixelBuffer, connection: connection, skip: true)
-                    //async let audioEmbedAsync = try audioEncoder.encode(atTime: asdTime)
-                    //let (videoInputs, audioEmbed) = await (videoProcessor.getFrames(atTime: asdTime), try audioEmbedAsync)
-                    let videoInputs = await videoProcessor.getFrames(atTime: asdTime)
+                    async let audioEmbedAsync = try audioEncoder.encode(atTime: asdTime)
+                    let (videoInputs, audioEmbed) = await (videoProcessor.getFrames(atTime: asdTime), try audioEmbedAsync)
+//                    let videoInputs = await videoProcessor.getFrames(atTime: asdTime)
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
+                    
+//                    if gifCounter % 6 == 0 {
+//                        for (id, videoInput) in videoInputs {
+//                            Utils.ML.saveMultiArrayAsGIF(videoInput, fileName: "\(id) \(gifCounter/6).gif")
+//                        }
+//                    }
                     
                     let scores: [UUID: MLMultiArray] = try await withThrowingTaskGroup(of: (UUID, MLMultiArray).self) { group in
                         for (id, videoInput) in videoInputs {
                             group.addTask {
-                                //let input = ASDModelInput(audioEmbedding: audioEmbed, videoInput: videoInput)
-                                let input = ASDVideoModelInput(videoInput: videoInput)
+                                let input = ASDModelInput(audioEmbedding: audioEmbed, videoInput: videoInput)
+//                                let input = ASDVideoModelInput(videoInput: videoInput)
                                 let scores = try await modelPool.withModel { model in
                                     try model.prediction(input: input).scores
                                 }
@@ -125,10 +134,10 @@ extension ASD {
     }
 }
 
-extension ASDVideoModelOutput : @unchecked Sendable {}
-extension ASDVideoModel: @unchecked Sendable {}
+extension ASDModelOutput : @unchecked Sendable {}
+extension ASDModel: @unchecked Sendable {}
 
-extension ASDVideoModel: MLWrapper {
-    typealias Input = ASDVideoModelInput
-    typealias Output = ASDVideoModelOutput
+extension ASDModel: MLWrapper {
+    typealias Input = ASDModelInput
+    typealias Output = ASDModelOutput
 }
