@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		D8BB08DC2DFBA33D0058444C /* LANumerics in Frameworks */ = {isa = PBXBuildFile; productRef = D8BB08DB2DFBA33D0058444C /* LANumerics */; };
-		D8E9F5062E1651F0009087BD /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = D8E9F5052E1651F0009087BD /* Atomics */; };
 		D8FFC73B2E04E46E00F234F0 /* SwiftNP in Frameworks */ = {isa = PBXBuildFile; productRef = D8FFC73A2E04E46E00F234F0 /* SwiftNP */; };
 		D8FFC74C2E073CD900F234F0 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = D8FFC74B2E073CD900F234F0 /* AsyncAlgorithms */; };
 		D8FFC74F2E073D6700F234F0 /* BitCollections in Frameworks */ = {isa = PBXBuildFile; productRef = D8FFC74E2E073D6700F234F0 /* BitCollections */; };
@@ -79,7 +78,6 @@
 				D8FFC7592E073D6700F234F0 /* OrderedCollections in Frameworks */,
 				D8FFC74C2E073CD900F234F0 /* AsyncAlgorithms in Frameworks */,
 				D8FFC7572E073D6700F234F0 /* HeapModule in Frameworks */,
-				D8E9F5062E1651F0009087BD /* Atomics in Frameworks */,
 				D8FFC75B2E073D6700F234F0 /* _RopeModule in Frameworks */,
 				D8FFC7532E073D6700F234F0 /* DequeModule in Frameworks */,
 			);
@@ -154,7 +152,6 @@
 				D8FFC7562E073D6700F234F0 /* HeapModule */,
 				D8FFC7582E073D6700F234F0 /* OrderedCollections */,
 				D8FFC75A2E073D6700F234F0 /* _RopeModule */,
-				D8E9F5052E1651F0009087BD /* Atomics */,
 			);
 			productName = "ASD Prototype";
 			productReference = D8BB08992DFB764F0058444C /* ASD Prototype.app */;
@@ -246,7 +243,6 @@
 				D8FFC7392E04E46E00F234F0 /* XCRemoteSwiftPackageReference "SwiftNP" */,
 				D8FFC74A2E073CD900F234F0 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
 				D8FFC74D2E073D6700F234F0 /* XCRemoteSwiftPackageReference "swift-collections" */,
-				D8E9F5042E1651F0009087BD /* XCRemoteSwiftPackageReference "swift-atomics" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D8BB089A2DFB764F0058444C /* Products */;
@@ -449,7 +445,6 @@
 				ALWAYS_SEARCH_USER_PATHS = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COREML_CODEGEN_LANGUAGE = Swift;
@@ -459,14 +454,11 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/**";
-				INFOPLIST_KEY_CFBundleDisplayName = "Active Speaker Detection";
 				INFOPLIST_KEY_NSCameraUsageDescription = "\"This app uses the camera to detect faces in real-time.\"";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "\"This App uses the microphone so that it can analyze what you're saying\"";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UIRequiresFullScreen = NO;
-				INFOPLIST_KEY_UIStatusBarHidden = NO;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -493,7 +485,6 @@
 				ALWAYS_SEARCH_USER_PATHS = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COREML_CODEGEN_LANGUAGE = Swift;
@@ -503,14 +494,11 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/**";
-				INFOPLIST_KEY_CFBundleDisplayName = "Active Speaker Detection";
 				INFOPLIST_KEY_NSCameraUsageDescription = "\"This app uses the camera to detect faces in real-time.\"";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "\"This App uses the microphone so that it can analyze what you're saying\"";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UIRequiresFullScreen = NO;
-				INFOPLIST_KEY_UIStatusBarHidden = NO;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -668,14 +656,6 @@
 				kind = branch;
 			};
 		};
-		D8E9F5042E1651F0009087BD /* XCRemoteSwiftPackageReference "swift-atomics" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/swift-atomics.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.3.0;
-			};
-		};
 		D8FFC7392E04E46E00F234F0 /* XCRemoteSwiftPackageReference "SwiftNP" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/k-arindam/SwiftNP.git";
@@ -707,11 +687,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D8BB08DA2DFBA33D0058444C /* XCRemoteSwiftPackageReference "LANumerics" */;
 			productName = LANumerics;
-		};
-		D8E9F5052E1651F0009087BD /* Atomics */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D8E9F5042E1651F0009087BD /* XCRemoteSwiftPackageReference "swift-atomics" */;
-			productName = Atomics;
 		};
 		D8FFC73A2E04E46E00F234F0 /* SwiftNP */ = {
 			isa = XCSwiftPackageProductDependency;

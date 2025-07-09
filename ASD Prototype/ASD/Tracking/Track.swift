@@ -7,7 +7,6 @@
 
 import CoreML
 import Foundation
-import Atomics
 
 extension ASD.Tracking {
     final class Track:
