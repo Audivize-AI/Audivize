@@ -92,11 +92,11 @@ extension ASD {
                     let videoInputs = await videoProcessor.updateTracksAndGetFrames(atTime: time, from: pixelBuffer)
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
                     
-                    if gifCounter % 6 == 0 {
-                        for (id, videoInput) in videoInputs {
-                            Utils.ML.saveMultiArrayAsGIF(videoInput, to: "\(id) (\(gifCounter / 6)).gif")
-                        }
-                    }
+//                    if gifCounter % 6 == 0 {
+//                        for (id, videoInput) in videoInputs {
+//                            Utils.ML.saveMultiArrayAsGIF(videoInput, to: "\(id) (\(gifCounter / 6)).gif")
+//                        }
+//                    }
                     
                     // ASD update
                     let newScores = try await ASD.computeSpeakerScores(

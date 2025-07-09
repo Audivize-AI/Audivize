@@ -139,8 +139,6 @@ extension ASD.Tracking {
             return self.width.isNaN == false && self.height.isNaN == false
         }
         
-
-        
         private var lastMeasurement: SIMD4<Float>
         private var lastObservedState: Matrix<Float>
         private var lastObservedCovariance: Matrix<Float>

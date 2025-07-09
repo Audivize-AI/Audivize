@@ -22,6 +22,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     
     // Vision and Core ML properties
     private var asd: ASD.ASD?
+    private var diarizer: Diarizer?
         
     init(cameraAngle: CGFloat = 0.0) {
         self.previewLayer = .init()
@@ -35,19 +36,20 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
     
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        do {
-            try self.asd?.update(
-                videoSample: sampleBuffer,
-                cameraPosition: self.videoCaptureDevice?.position ?? .unspecified,
-                connection: connection
-            )
-        } catch {
-            print("Video Error: \(error)")
+        if output is AVCaptureVideoDataOutput {
+            do {
+//                print("video")
+                try self.asd?.update(
+                    videoSample: sampleBuffer,
+                    cameraPosition: self.videoCaptureDevice?.position ?? .unspecified,
+                    connection: connection
+                )
+            } catch {
+                print("Video Error: \(error)")
+            }
+        } else {
+            self.diarizer?.diarize(from: sampleBuffer)
         }
-//        if output is AVCaptureVideoDataOutput {
-//        } else {
-//            self.asd?.updateAudio(audioSample: sampleBuffer)
-//        }
     }
     
     // Public methods to control session from the UI. These are useful for app lifecycle events.
@@ -117,19 +119,19 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         }
         
         // set up microphone
-//        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-//        case .authorized:
-//            self.setupMicrophone(for: session)
-//        case .notDetermined:
-//            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-//                if granted {
-//                    self?.setupMicrophone(for: session)
-//                } else {
-//                    print("Microphone access was denied.")
-//                }
-//            }
-//        default: break
-//        }
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            self.setupMicrophone(for: session)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                if granted {
+                    self?.setupMicrophone(for: session)
+                } else {
+                    print("Microphone access was denied.")
+                }
+            }
+        default: break
+        }
         
         let currentTime = CMClockGetTime(session.synchronizationClock!).seconds
         self.asd = .init(
@@ -142,6 +144,8 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
                 }
             }
         )
+        
+        self.diarizer = try? .init()
         
         session.startRunning()
         

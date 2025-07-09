@@ -229,7 +229,7 @@ extension ASD.Tracking {
                 self.kalmanFilter.update(measurement: detection.kfRect)
                 self.rect = self.cameraTransformer.toTrackCoordinates(self.kalmanFilter.rect)
             }
-            print("\(self.shortString): valid = \(self.kalmanFilter.isValid), kf rect = \(self.kalmanFilter.rect), rect = \(self.rect), detection: \(detection.rect)")
+            //print("\(self.shortString): valid = \(self.kalmanFilter.isValid), kf rect = \(self.kalmanFilter.rect), rect = \(self.rect), detection: \(detection.rect)")
             
             // update confidence
             self.lastConfidence2 = self.lastConfidence

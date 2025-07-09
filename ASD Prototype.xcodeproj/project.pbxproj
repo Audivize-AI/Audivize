@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D837FCEC2E1EE07200153DD1 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = D837FCEB2E1EE07200153DD1 /* FluidAudio */; };
 		D8BB08DC2DFBA33D0058444C /* LANumerics in Frameworks */ = {isa = PBXBuildFile; productRef = D8BB08DB2DFBA33D0058444C /* LANumerics */; };
 		D8FFC73B2E04E46E00F234F0 /* SwiftNP in Frameworks */ = {isa = PBXBuildFile; productRef = D8FFC73A2E04E46E00F234F0 /* SwiftNP */; };
 		D8FFC74C2E073CD900F234F0 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = D8FFC74B2E073CD900F234F0 /* AsyncAlgorithms */; };
@@ -76,6 +77,7 @@
 				D8FFC7552E073D6700F234F0 /* HashTreeCollections in Frameworks */,
 				D8BB08DC2DFBA33D0058444C /* LANumerics in Frameworks */,
 				D8FFC7592E073D6700F234F0 /* OrderedCollections in Frameworks */,
+				D837FCEC2E1EE07200153DD1 /* FluidAudio in Frameworks */,
 				D8FFC74C2E073CD900F234F0 /* AsyncAlgorithms in Frameworks */,
 				D8FFC7572E073D6700F234F0 /* HeapModule in Frameworks */,
 				D8FFC75B2E073D6700F234F0 /* _RopeModule in Frameworks */,
@@ -152,6 +154,7 @@
 				D8FFC7562E073D6700F234F0 /* HeapModule */,
 				D8FFC7582E073D6700F234F0 /* OrderedCollections */,
 				D8FFC75A2E073D6700F234F0 /* _RopeModule */,
+				D837FCEB2E1EE07200153DD1 /* FluidAudio */,
 			);
 			productName = "ASD Prototype";
 			productReference = D8BB08992DFB764F0058444C /* ASD Prototype.app */;
@@ -243,6 +246,7 @@
 				D8FFC7392E04E46E00F234F0 /* XCRemoteSwiftPackageReference "SwiftNP" */,
 				D8FFC74A2E073CD900F234F0 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
 				D8FFC74D2E073D6700F234F0 /* XCRemoteSwiftPackageReference "swift-collections" */,
+				D837FCEA2E1EE07200153DD1 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D8BB089A2DFB764F0058444C /* Products */;
@@ -632,6 +636,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		D837FCEA2E1EE07200153DD1 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidAudio.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		D8AE12232E011B06003E8CDD /* XCRemoteSwiftPackageReference "HungarianAlgorithm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/delicious-ai/HungarianAlgorithm.git";
@@ -683,6 +695,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		D837FCEB2E1EE07200153DD1 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D837FCEA2E1EE07200153DD1 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
+		};
 		D8BB08DB2DFBA33D0058444C /* LANumerics */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D8BB08DA2DFBA33D0058444C /* XCRemoteSwiftPackageReference "LANumerics" */;

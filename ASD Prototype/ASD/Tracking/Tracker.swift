@@ -14,9 +14,9 @@ import CoreML
 
 
 extension ASD.Tracking {
-    final class Tracker {
+    final actor Tracker {
         // MARK: structs and enums
-        typealias MergeCallback = (ASD.MergeRequest) -> Void
+        typealias MergeCallback = @Sendable (ASD.MergeRequest) -> Void
         
         enum TrackerError: Error {
             case rlapInvalidCostMatrix
