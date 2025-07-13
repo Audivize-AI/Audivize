@@ -25,7 +25,7 @@ extension ASD {
         let misses: Int
         let score: Float
         
-        var string: String { "ID: \(id.uuidString)\n\(self.costString)\nScore: \(score)" }
+        var string: String { "ID: \(id.uuidString.prefix(4))\n\(self.costString)" } //\nScore: \(score)" }
         
         init(track: Tracking.SendableTrack, score: Float, mirrored: Bool, rect: CGRect? = nil) {
             self.id = track.id

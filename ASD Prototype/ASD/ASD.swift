@@ -6,9 +6,9 @@
 //
 
 import Foundation
+@preconcurrency import Vision
 @preconcurrency import CoreML
 @preconcurrency import AVFoundation
-import Vision
 
 extension ASD {
     final class ASD {
@@ -16,6 +16,7 @@ extension ASD {
         typealias ASDCallback = @Sendable (VideoProcessor.TimestampedScoreData) async -> Void
         typealias MergeCallback = @Sendable (MergeRequest) -> Void
         
+        private let tracker: Tracking.Tracker
         private let videoProcessor: VideoProcessor
         private let modelPool: Utils.ML.ModelPool<ASDVideoModel>
         private let trackingCallback: TrackingCallback?
@@ -37,10 +38,12 @@ extension ASD {
              onASDComplete asdCallback: ASDCallback? = nil,
              onMerge mergeCallback: MergeCallback? = nil)
         {
-            self.videoProcessor = .init(atTime: time,
-                                        videoSize: videoSize,
-                                        cameraAngle: cameraAngle,
-                                        mergeCallback: mergeCallback)
+            self.videoProcessor = .init(atTime: time)
+            self.tracker = .init(faceProcessor: .init(),
+                                 videoSize: videoSize,
+                                 cameraAngle: cameraAngle,
+                                 onTracksMerged: mergeCallback)
+            
             self.frameSkipCounter = 0
             self.trackingCallback = trackingCallback
             self.asdCallback = asdCallback
@@ -71,6 +74,7 @@ extension ASD {
             let trackingCallback = self.trackingCallback
             let asdCallback = self.asdCallback
             let modelPool = self.modelPool
+            let tracker = self.tracker
             
             let orientation = Tracking.CameraOrientation(
                 angle: connection.videoRotationAngle,
@@ -78,18 +82,21 @@ extension ASD {
             )
             
             Task.detached(priority: .userInitiated) {
+                let tracks = await tracker.update(pixelBuffer: pixelBuffer, orientation: orientation)
                 if isVideoUpdate {
                     // tracking and video buffer update
+                    
                     let speakers = await videoProcessor.updateVideosAndGetSpeakers(
                         atTime: time,
-                        from: pixelBuffer,
+                        from: tracks,
+                        in: pixelBuffer,
                         orientation: orientation
                     )
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
                     await trackingCallback?(speakers)
                 } else {
                     // tracking update
-                    let videoInputs = await videoProcessor.updateTracksAndGetFrames(atTime: time, from: pixelBuffer)
+                    let videoInputs = await videoProcessor.updateTracksAndGetFrames(atTime: time, from: tracks, in: pixelBuffer)
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
                     
 //                    if gifCounter % 6 == 0 {
@@ -145,6 +152,8 @@ extension ASD {
     }
 }
 
+
+extension MLMultiArray: @unchecked @retroactive Sendable {}
 extension ASDVideoModelOutput : @unchecked Sendable {}
 extension ASDVideoModel: @unchecked Sendable {}
 

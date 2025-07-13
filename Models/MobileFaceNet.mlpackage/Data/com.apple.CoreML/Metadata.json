@@ -1,0 +1,10 @@
+{
+  "MLModelDescriptionKey" : "MobileFaceNet model for face verification, converted from a frozen TorchScript model.",
+  "MLModelCreatorDefinedKey" : {
+    "com.github.apple.coremltools.version" : "8.3.0",
+    "com.github.apple.coremltools.source_dialect" : "TorchScript",
+    "com.github.apple.coremltools.source" : "torch==2.5.0"
+  },
+  "MLModelAuthorKey" : "Yang Liu",
+  "MLModelLicenseKey" : "MIT"
+}

@@ -6,8 +6,8 @@
 //
 
 import Foundation
-import CoreML
 import AVFoundation
+@preconcurrency import CoreML
 
 
 extension ASD {
@@ -57,23 +57,12 @@ extension ASD {
         }
         
         // MARK: Private properties
-        private let tracker: Tracking.Tracker
         private let scoreTimestamps: Utils.TimestampBuffer
-
         private var videoTracks: [UUID: VideoTrack]
         
         // MARK: Constructor
-        init(atTime time: Double,
-             videoSize: CGSize,
-             cameraAngle: CGFloat,
-             mergeCallback: Tracking.Tracker.MergeCallback?)
+        init(atTime time: Double)
         {
-            self.tracker = .init(
-                faceProcessor: .init(),
-                videoSize: videoSize,
-                cameraAngle: cameraAngle,
-                onTracksMerged: mergeCallback
-            )
             self.scoreTimestamps = .init(
                 atTime: time,
                 capacity: ASDConfiguration.scoreBufferCapacity
@@ -83,10 +72,7 @@ extension ASD {
         
         // MARK: Updater methods
         
-        public func updateVideosAndGetSpeakers(atTime time: Double, from pixelBuffer: CVPixelBuffer, orientation: Tracking.CameraOrientation) -> [SendableSpeaker] {
-            // get tracks
-            let tracks = tracker.update(pixelBuffer: pixelBuffer, orientation: orientation)
-            
+        public func updateVideosAndGetSpeakers(atTime time: Double, from tracks: [Tracking.SendableTrack], in pixelBuffer: CVPixelBuffer, orientation: Tracking.CameraOrientation) -> [SendableSpeaker] {
             var output: [SendableSpeaker] = []
             output.reserveCapacity(tracks.count)
             
@@ -107,10 +93,8 @@ extension ASD {
             return output
         }
         
-        public func updateTracksAndGetFrames(atTime time: Double, from pixelBuffer: CVPixelBuffer) -> [UUID : MLMultiArray] {
+        public func updateTracksAndGetFrames(atTime time: Double, from tracks: [Tracking.SendableTrack], in pixelBuffer: CVPixelBuffer) -> [UUID : MLMultiArray] {
             // get tracks
-            let tracks = self.tracker.update(pixelBuffer: pixelBuffer)
-            
             var updatedFrames: [UUID : MLMultiArray] = [:]
             updatedFrames.reserveCapacity(tracks.count)
             

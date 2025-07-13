@@ -16,7 +16,7 @@ extension ASD.Tracking {
         let confidence: Float
         
         var buffer: CVPixelBuffer?
-        var embedding: MLMultiArray?
+        var embedding: [Float]?
         
         init (rect: CGRect, confidence: Float, transformer: CameraCoordinateTransformer) {
             self.rect = rect

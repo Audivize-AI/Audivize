@@ -17,8 +17,10 @@ extension ASD.Tracking {
         private let request: VNCoreMLRequest
         
         init() {
+            print("DEBUG: Loading YOLOv11n model...")
             let mlModel = try! YOLOv11n(configuration: MLModelConfiguration())
             self.model = try! VNCoreMLModel(for: mlModel.model)
+            print("DEBUG: RETRIEVED YOLOv11n model.")
             self.request = VNCoreMLRequest(model: self.model)
             self.request.imageCropAndScaleOption = .scaleFit
         }

@@ -22,8 +22,10 @@ extension ASD.Tracking {
             self.requests.reserveCapacity(FaceProcessingConfiguration.minReadyEmbedderRequests * 2)
             self.expirations.reserveCapacity(FaceProcessingConfiguration.minReadyEmbedderRequests)
            
-            let mlModel = try! MobileFaceNet(configuration: MLModelConfiguration())
+            print("DEBUG: Loading MobileFaceNetV2 model...")
+            let mlModel = try! MobileFaceNetV2(configuration: MLModelConfiguration())
             self.model = try! VNCoreMLModel(for: mlModel.model)
+            print("DEBUG: RETRIEVED MobileFaceNetV2 model.")
             
             for _ in 0..<FaceProcessingConfiguration.minReadyEmbedderRequests {
                 let r = VNCoreMLRequest(model: self.model)
@@ -38,7 +40,7 @@ extension ASD.Tracking {
         /// - Returns: array of embedding vectors
         /// - Warning: assumes that `self.canEmbed(rect)` is true for all `rect`s in `rects`
         @discardableResult
-        public func embed(faces rects: [CGRect], in pixelBuffer: CVPixelBuffer) -> [MLMultiArray] {
+        public func embed(faces rects: [CGRect], in pixelBuffer: CVPixelBuffer) -> [[Float]] {
             self.refreshRequests(num: rects.count)
             
             let bufferWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
@@ -66,10 +68,19 @@ extension ASD.Tracking {
             let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer)
             
             do {
+                let start = Date()
                 try handler.perform(usedRequests)
+                let end = Date()
+                let duration = end.timeIntervalSince(start)
+                print("DEBUG: Embedding took \(duration * 1000) ms.")
                 return usedRequests.map {
                     let result = $0.results?.first as? VNCoreMLFeatureValueObservation
-                    return result!.featureValue.multiArrayValue!
+                    guard let multiArray = result?.featureValue.multiArrayValue else {
+                        fatalError("Embedding request did not return a valid MLMultiArray.")
+                    }
+                    return multiArray.withUnsafeBufferPointer(ofType: Float.self) { buffer in
+                        Array(buffer)
+                    }
                 }
             } catch {
                 print ("Error embedding faces: \(error)")

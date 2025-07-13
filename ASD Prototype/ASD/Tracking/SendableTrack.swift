@@ -14,13 +14,15 @@ extension ASD.Tracking {
         let rect: CGRect
         let misses: Int
         let costString: String
+        let embedding: [Float]
         
         init(_ track: Track) {
             self.id = track.id
             self.status = track.status
-            self.costString = "\(track.costs.string)\nAppearance (Average): \(String(format: "%.2f", 10 * track.averageAppearanceCost))"
+            self.costString = /*"\(track.costs.string)\n*/"Appearance (Average): \(String(format: "%.2f", 10 * track.averageAppearanceCost))"
             self.rect = track.rect
             self.misses = -track.hits
+            self.embedding = track.embedding
         }
     }
 }

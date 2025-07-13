@@ -171,21 +171,8 @@ extension ASD.Tracking {
                 ]),
                 B: Matrix.zero,
                 H: Matrix(rows: 4, columns: 7, diagonal: [Float](repeating: 1, count: 4)),
-                Q: Matrix(rows: [
-                    [ 2.76384024e+01,  1.26272631e+01, -2.44306029e+02,  2.78650185e-03,  5.52874948e+01,  2.49260963e+01, -4.64828803e+02],
-                    [ 1.26272631e+01,  9.71305095e+00, -1.09689915e+00,  5.22651143e-04,  2.52692561e+01,  1.92320866e+01,  1.51291018e+01],
-                    [-2.44306029e+02, -1.09689915e+00,  2.03852928e+05,  8.27847482e-02, -4.89478381e+02, -1.29774689e+01,  4.07625823e+05],
-                    [ 2.78650185e-03,  5.22651143e-04,  8.27847482e-02,  4.28270662e-04,  5.56470927e-03,  9.79662559e-04,  1.70162934e-01],
-                    [ 5.52874948e+01,  2.52692561e+01, -4.89478381e+02,  5.56470927e-03,  1.10601809e+02,  4.98815834e+01, -9.31638176e+02],
-                    [ 2.49260963e+01,  1.92320866e+01, -1.29774689e+01,  9.79662559e-04,  4.98815834e+01,  3.81011931e+01,  8.33570472e+00],
-                    [-4.64828803e+02,  1.51291018e+01,  4.07625823e+05,  1.70162934e-01, -9.31638176e+02,  8.33570471e+00,  8.15230385e+05]
-                ]),
-                R: Matrix(rows: [
-                    [ 5.39921154e+02,  3.41849660e+02,  5.24069050e+03, -1.43657096e-02],
-                    [ 3.41849660e+02,  2.17244846e+02,  3.18265486e+03, -9.72325702e-03],
-                    [ 5.24069050e+03,  3.18265486e+03,  5.25004162e+05, -4.25884516e+00],
-                    [-1.43657096e-02, -9.72325702e-03, -4.25884516e+00,  2.72160113e-04]
-                ]),
+                Q: Matrix<Float>.eye(7),
+                R: Matrix<Float>.eye(4),
                 P0: Matrix(diagonal: [1, 1, 1, 1, 0.01, 0.01, 0.001])
             )
             
@@ -360,15 +347,37 @@ extension ASD.Tracking {
         
         @inline(__always)
         private func recomputeR(from measurement: SIMD4<Float>) {
-            let std = 0.05 * self.height
-            self.R = .init(diagonal: [std, std, std, 0.1])
+            let xx = RConfiguration.covXX * self.height
+            let AA = RConfiguration.covAA * self.height
+            let rr = RConfiguration.covRR * self.height
+            self.R[0, 0] = xx
+            self.R[1, 1] = xx
+            self.R[2, 2] = AA
+            self.R[3, 3] = rr
         }
         
         @inline(__always)
         private func recomputeQ() {
-//            let std = 0.05 * self.height
-//            let stdv = 0.00625 * self.height
-//            self.Q = .init(diagonal: [std, std, std, 0.01, stdv, stdv, stdv])
+            let xx = QConfiguration.covXX * self.height
+            let AA = QConfiguration.covAA * self.height
+            let rr = QConfiguration.covRR * self.height
+            let vv = QConfiguration.covVV * self.height
+            let vAvA = QConfiguration.covVAVA * self.height
+            let xv = QConfiguration.covXV * self.height
+            let AvA = QConfiguration.covAVA * self.height
+            self.Q[0, 0] = xx
+            self.Q[1, 1] = xx
+            self.Q[2, 2] = AA
+            self.Q[3, 3] = rr
+            self.Q[4, 4] = vv
+            self.Q[5, 5] = vv
+            self.Q[6, 6] = vAvA
+            self.Q[0, 4] = xv
+            self.Q[4, 0] = xv
+            self.Q[1, 5] = xv
+            self.Q[5, 1] = xv
+            self.Q[2, 6] = AvA
+            self.Q[6, 2] = AvA
         }
     }
 }

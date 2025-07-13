@@ -117,64 +117,7 @@ extension ASD.Tracking {
                         .map(SendableTrack.init))
         }
         
-        /// Add a permanent track to the tracker
-        /// - Parameters:
-        ///   - id: the track's ID
-        ///   - embedding: the track's facial feature embedding
-        ///   - detection: the detection associated with the track. Will initialize the track as inactive if not provided.
-        /// - Throws: when the embedding vector's shape is mismatched from the desired shape
-        public func addTrack(id: UUID, embedding: MLMultiArray, detection: Detection? = nil) throws {
-            let track = try Track(id: id,
-                                  embedding: embedding,
-                                  transformer: self.cameraTransformer,
-                                  detection: detection)
-            if track.status.isActive {
-                self.activeTracks.append(track)
-            } else {
-                self.inactiveTracks.append(track)
-            }
-        }
         
-        /// Add a permanent track to the tracker
-        /// - Parameters:
-        ///   - track: the track being added
-        /// - Throws: when the track's status is pending
-        public func addTrack(_ track: Track) throws {
-            switch track.status {
-            case .active:
-                self.activeTracks.append(track)
-            case .inactive:
-                self.inactiveTracks.append(track)
-            default:
-                self.activeTracks.append(track)
-                track.retain()
-            }
-        }
-        
-        /// Add a permanent track to the tracker
-        /// - Parameters:
-        ///   - track: the track being removed
-        /// - Returns: true if the track was removed, false if not
-        public func removeTrack(_ track: Track) -> Bool {
-            track.release()
-            if self.activeTracks.remove(track) == nil {
-                if self.inactiveTracks.remove(track) == nil {
-                    return false
-                }
-            }
-            return true
-        }
-        
-        /// Add a permanent track to the tracker
-        /// - Parameters:
-        ///   - track: the track being removed
-        /// - Throws: when the track's status is pending
-        public func removeTrack(withID id: UUID) -> Bool {
-            if let track = (self.activeTracks.elements + self.inactiveTracks.elements).first(where: { $0.id == id }) {
-                return self.removeTrack(track)
-            }
-            return false
-        }
         
         // MARK: private methods
         private func assign(_ progress: inout AssignmentProgress, pixelBuffer: CVPixelBuffer) {
@@ -440,8 +383,7 @@ extension ASD.Tracking {
                 if other == track {
                     continue
                 }
-                
-                let cost = Utils.ML.cosineDistance(from: track.embedding, to: other.embedding)
+                let cost = track.cosineDistance(to: other.embedding)
                 if cost < minCost {
                     bestMatch = other
                     minCost = cost

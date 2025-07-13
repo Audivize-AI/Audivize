@@ -7,6 +7,7 @@
 
 import CoreML
 import Foundation
+import Accelerate
 
 extension ASD.Tracking {
     final class Track:
@@ -50,7 +51,7 @@ extension ASD.Tracking {
         public private(set) var rect: CGRect = .zero
         public private(set) var costs: Costs = Costs()
         public private(set) var status: Status = .pending
-        public private(set) var embedding: MLMultiArray
+        public private(set) var embedding: [Float]
         public private(set) var isPermanent: Bool = false
         public private(set) var expectedConfidence: Float = 0.0
         public var averageAppearanceCost: Float {
@@ -122,12 +123,9 @@ extension ASD.Tracking {
         /// - Parameter detection: the detection associated with this track (if left blank then the track will initialize as inactive)
         /// - Throws `embeddingDimensionMismatch` when `embedding` does not have the right shape, namely (1,128) or (128,)
         public init(id: UUID,
-                    embedding: MLMultiArray,
+                    embedding: [Float],
                     transformer: CameraCoordinateTransformer,
                     detection: Detection? = nil) throws {
-            if embedding.shape.last != 128 || embedding.count != 128 {
-                throw TrackInitializationError.embeddingDimensionMismatch
-            }
             self.cameraTransformer = transformer
             self.embedding = embedding
             
@@ -275,7 +273,20 @@ extension ASD.Tracking {
         @inline(__always)
         func cosineDistance(to detection: Detection) -> Float {
             if let detectionEmbedding = detection.embedding {
-                return Utils.ML.cosineDistance(from: self.embedding, to: detectionEmbedding)
+                return self.cosineDistance(to: detectionEmbedding)
+            }
+            return 2.0
+        }
+        
+        /// Returns cosine distance between the feature embedding vectors
+        /// - Parameter embedding: embedding to compare
+        /// - Returns: cosine distance between this track's embedding vector and the provided `embedding` vector
+        @inline(__always)
+        func cosineDistance(to embedding: [Float]) -> Float {
+            let dot = vDSP.dot(self.embedding, embedding)
+            let denominator = sqrt(vDSP.sumOfSquares(self.embedding) * vDSP.sumOfSquares(embedding))
+            if denominator != 0 {
+                return 1.0 - dot / denominator
             }
             // return the maximum value of cosine distance
             return 2.0
@@ -322,7 +333,11 @@ extension ASD.Tracking {
             alpha *= (conf - minConf) / (1.0 - minConf)
             alpha *= exp(-appearanceCost / (self.averageAppearanceCost + 1e-10))
             self.appearanceCostKF.step(measurement: appearanceCost)
-            Utils.ML.updateEMA(ema: self.embedding, with: newEmbedding, alpha: alpha)
+            vDSP.add(self.embedding,
+                     vDSP.multiply(alpha,
+                                   vDSP.subtract(newEmbedding, self.embedding)),
+                     result: &self.embedding)
+            
             self.iterationsUntilEmbeddingUpdate = TrackingConfiguration.iterationsPerEmbeddingUpdate
         }
     }

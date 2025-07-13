@@ -1,0 +1,18 @@
+{
+  "Inputs" : {
+    "image_input" : {
+      "MLFeatureShortDescription" : "Input face image of size (1, 3, 112, 112)."
+    }
+  },
+  "Outputs" : {
+    "x13_1" : {
+      "MLFeatureShortDescription" : "A 128-dimensional feature vector (embedding) of the face."
+    }
+  },
+  "TrainingInputs" : {
+
+  },
+  "States" : {
+
+  }
+}
