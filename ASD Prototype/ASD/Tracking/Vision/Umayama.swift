@@ -11,12 +11,15 @@ import Foundation
 extension ASD.Tracking {
     enum Alignment {
         /// Reference points for alignment
+        fileprivate static let sz: Float = 224
+        fileprivate static let sc: Float = 1.75
+        fileprivate static let hx: Float = sz * (2 - sc) / 4
         private static let dst: [Float] = [
-            38.2946, 112-51.6963,
-            73.5318, 112-51.5014,
-            56.0252, 112-71.7366,
-            41.5493, 112-92.3655,
-            70.7299, 112-92.2041,
+            hx + sc * 38.2946, sz - sc * 51.6963, // left eye
+            hx + sc * 73.5318, sz - sc * 51.5014, // right eye
+            hx + sc * 56.0252, sz - sc * 71.7366, // nose
+            hx + sc * 41.5493, sz - sc * 92.3655, // left mouth
+            hx + sc * 70.7299, sz - sc * 92.2041, // right mouth
         ]
         
         private static let (dxMean, dyMean) = { () -> (Float, Float) in
