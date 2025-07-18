@@ -157,7 +157,4 @@ extension MLMultiArray: @unchecked @retroactive Sendable {}
 extension ASDVideoModelOutput : @unchecked Sendable {}
 extension ASDVideoModel: @unchecked Sendable {}
 
-extension ASDVideoModel: MLWrapper {
-    typealias Input = ASDVideoModelInput
-    typealias Output = ASDVideoModelOutput
-}
+extension ASDVideoModel: MLWrapper {}

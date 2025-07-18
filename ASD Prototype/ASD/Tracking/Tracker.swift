@@ -124,21 +124,21 @@ extension ASD.Tracking {
             // assign active tracks
             self.applyInitialCostFilter(&progress, costFunction: self.meetsMotionCostCutoff)
             self.faceProcessor.embed(pixelBuffer: pixelBuffer, faces: progress.detections)
-            self.applyCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff)
+            self.applyCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff(TrackingConfiguration.maxAppearanceCost))
             self.assignWithRLAP(&progress)
-            self.applyInitialCostFilter(&progress, costFunction: self.meetsReIDCostCutoff)
+            self.applyInitialCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff(TrackingConfiguration.maxTeleportCost))
             self.registerMisses(&progress, tracks: &self.activeTracks, trackStatus: .active)
             
             // assign inactive tracks
             progress.tracks = self.inactiveTracks
-            self.applyInitialCostFilter(&progress, costFunction: self.meetsReIDCostCutoff)
+            self.applyInitialCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff(TrackingConfiguration.maxReIDCost))
             self.assignWithRLAP(&progress)
             self.registerMisses(&progress, tracks: &self.inactiveTracks, trackStatus: .inactive)
             
             // assign pending tracks
             progress.tracks = self.pendingTracks
             self.applyInitialCostFilter(&progress, costFunction: self.meetsMotionCostCutoff)
-            self.applyCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff)
+            self.applyCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff(TrackingConfiguration.maxAppearanceCost))
             self.assignWithRLAP(&progress)
             for track in progress.tracks {
                 self.pendingTracks.remove(track)
@@ -151,15 +151,11 @@ extension ASD.Tracking {
         }
         
         @inline(__always)
-        private func meetsAppearanceCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
-            costs.appearance = track.cosineDistance(to: detection)
-            return costs.appearance <= TrackingConfiguration.maxAppearanceCost
-        }
-        
-        @inline(__always)
-        private func meetsReIDCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
-            costs.appearance = track.cosineDistance(to: detection)
-            return costs.appearance <= TrackingConfiguration.maxReIDCost
+        private func meetsAppearanceCostCutoff(_ cutoff: Float) -> ((_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool) {
+            return {(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool in
+                costs.appearance = track.cosineDistance(to: detection)
+                return costs.appearance <= cutoff
+            }
         }
         
         @inline(__always)

@@ -14,14 +14,15 @@ extension ASD.Tracking {
         let rect: CGRect
         let kfRect: CGRect
         let confidence: Float
+        let landmarks: [Float]
         
-        var buffer: CVPixelBuffer?
         var embedding: [Float]?
         
-        init (rect: CGRect, confidence: Float, transformer: CameraCoordinateTransformer) {
+        init (rect: CGRect, confidence: Float, transformer: CameraCoordinateTransformer, landmarks: [Float]) {
             self.rect = rect
             self.kfRect = transformer.toKfCoordinates(rect)
             self.confidence = confidence
+            self.landmarks = landmarks
         }
         
         static func == (lhs: Detection, rhs: Detection) -> Bool {

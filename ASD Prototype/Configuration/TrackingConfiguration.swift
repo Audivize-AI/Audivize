@@ -10,14 +10,14 @@ import Foundation
 extension ASD.Tracking {
     struct TrackingConfiguration {
         // activation, confirmation, and deletion
-        static let confirmationThreshold: Int                   = 15
-        static let activationThreshold: Int                     = 5
+        static let confirmationThreshold: Int                   = 30
+        static let activationThreshold: Int                     = 2
         static let deactivationThreshold: Int                   = 20
         static let deletionThreshold: Int                       = 10 * 30
         
         // embedding updates
-        static let iterationsPerEmbeddingUpdate: Int            = 4
-        static let embeddingConfidenceThreshold: Float          = 0.7
+        static let iterationsPerEmbeddingUpdate: Int            = 5
+        static let embeddingConfidenceThreshold: Float          = 0.5
         static let embeddingAlpha: Float                        = 1 - pow(0.333, embeddingDt)
         static let appearanceCostVariance: Float                = 0.006 * embeddingDt
         static let appearanceCostMeasurementVariance: Float     = 0.006
@@ -28,8 +28,9 @@ extension ASD.Tracking {
         
         // gating thresholds
         static let minIou: Float            = 0.2
-        static let maxAppearanceCost: Float = 0.5
-        static let maxReIDCost: Float       = 0.16
+        static let maxAppearanceCost: Float = 0.35
+        static let maxTeleportCost: Float   = 0.3
+        static let maxReIDCost: Float       = 0.2
         
         // weights
         static let ocmWeight: Float         = 0.2

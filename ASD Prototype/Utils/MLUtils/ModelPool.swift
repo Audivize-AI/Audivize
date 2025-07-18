@@ -9,11 +9,7 @@ import Foundation
 import CoreML
 
 
-protocol MLWrapper: AnyObject, Sendable {
-    associatedtype Input: MLFeatureProvider
-    associatedtype Output
-    func prediction(input: Input) throws -> Output
-}
+protocol MLWrapper: AnyObject, Sendable {}
 
 extension Utils.ML {
     /// An async-safe pool of Core ML models.

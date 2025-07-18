@@ -12,124 +12,34 @@ import ImageIO
 
 extension ASD.Tracking {
     final class FaceEmbedder {
-        private let model: VNCoreMLModel
-        private var requests: [VNCoreMLRequest]
-        private var expirations: [DispatchTime]
+        private let embedderModel: MobileFaceNetV2
         
         init() {
-            self.requests = []
-            self.expirations = []
-            self.requests.reserveCapacity(FaceProcessingConfiguration.minReadyEmbedderRequests * 2)
-            self.expirations.reserveCapacity(FaceProcessingConfiguration.minReadyEmbedderRequests)
-           
-            print("DEBUG: Loading MobileFaceNetV2 model...")
-            let mlModel = try! MobileFaceNetV2(configuration: MLModelConfiguration())
-            self.model = try! VNCoreMLModel(for: mlModel.model)
-            print("DEBUG: RETRIEVED MobileFaceNetV2 model.")
-            
-            for _ in 0..<FaceProcessingConfiguration.minReadyEmbedderRequests {
-                let r = VNCoreMLRequest(model: self.model)
-                r.imageCropAndScaleOption = .scaleFill
-                self.requests.append(r)
-            }
+            print("DEBUG: Loading GhostFaceNet model...")
+            self.embedderModel = try! MobileFaceNetV2(configuration: MLModelConfiguration())
+            print("DEBUG: RETRIEVED GhostFaceNet model.")
         }
         
         /// - Parameters:
-        ///   - rects normalized detection bounding boxes
+        ///   - detections array of face detection objects
         ///   - pixelBuffer image pixelBuffer
-        /// - Returns: array of embedding vectors
-        /// - Warning: assumes that `self.canEmbed(rect)` is true for all `rect`s in `rects`
-        @discardableResult
-        public func embed(faces rects: [CGRect], in pixelBuffer: CVPixelBuffer) -> [[Float]] {
-            self.refreshRequests(num: rects.count)
-            
-            let bufferWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
-            let bufferHeight = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
-            
-            for (request, rect) in zip(requests, rects) {
-                let size = max(rect.width * bufferWidth,
-                               rect.height * bufferHeight)
-                
-                let width = size / bufferWidth
-                let height = size / bufferHeight
-                let halfWidth = width / 2
-                let halfHeight = height / 2
-                
-                request.regionOfInterest = CGRect(
-                    x: rect.midX - halfWidth,
-                    y: 1 - (rect.midY + halfHeight),
-                    width: width,
-                    height: height
-                ).intersection(.one)
-            }
-            
-            let usedRequests = Array(self.requests[0..<rects.count])
-            
-            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer)
-            
-            do {
-                let start = Date()
-                try handler.perform(usedRequests)
-                let end = Date()
-                let duration = end.timeIntervalSince(start)
-                print("DEBUG: Embedding took \(duration * 1000) ms.")
-                return usedRequests.map {
-                    let result = $0.results?.first as? VNCoreMLFeatureValueObservation
-                    guard let multiArray = result?.featureValue.multiArrayValue else {
-                        fatalError("Embedding request did not return a valid MLMultiArray.")
-                    }
-                    return multiArray.withUnsafeBufferPointer(ofType: Float.self) { buffer in
-                        Array(buffer)
-                    }
+        public func embed(faces detections: any Sequence<Detection>,
+                          in pixelBuffer: CVPixelBuffer) {            
+            for detection in detections {
+                let transform = Alignment.computeAlignTransform(detection.landmarks)
+                if let alignedImage = Alignment.warpImage(pixelBuffer,
+                                                          with: transform,
+                                                          size: (224, 224)) {
+                    let input = MobileFaceNetV2Input(input_image: alignedImage)
+                    let start = Date()
+                    detection.embedding = try? self.embedderModel.prediction(input: input)
+                        .var_854ShapedArray.scalars
+                    let end = Date()
+                    print("DEBUG: Embedding time: \(end.timeIntervalSince(start)) seconds.")
                 }
-            } catch {
-                print ("Error embedding faces: \(error)")
-                return []
-            }
-        }
-        
-        @inline(__always)
-        private func refreshRequests(num: Int) {
-            let expirationTime = DispatchTime.now() + FaceProcessingConfiguration.embedderRequestLifespan
-            
-            // if we are adding more requests then the other requests are also about to get used
-            
-            let numToAdd = num - self.requests.count
-            if numToAdd <= 0 {
-                /// The first `minReadyRequests` requests don't have an expiration clock. Only refresh the clocks for those that come after them.
-                let numToRefresh = num - FaceProcessingConfiguration.minReadyEmbedderRequests
-                if numToRefresh > 0 {
-                    for i in (0..<numToRefresh) {
-                        self.expirations[i] = expirationTime
-                    }
-                }
-                self.removeExpiredRequests()
-            } else {
-                self.addRequests(num: numToAdd, expirationTime: expirationTime)
-            }
-        }
-        
-        @inline(__always)
-        private func addRequests(num: Int, expirationTime: DispatchTime) {
-            // if we are adding requests, then we must also be using all the existing ones.
-            for i in self.expirations.indices {
-                self.expirations[i] = expirationTime
-            }
-            
-            for _ in 0..<num {
-                let r = VNCoreMLRequest(model: self.model)
-                r.imageCropAndScaleOption = .scaleFit
-                self.requests.append(r)
-                self.expirations.append(expirationTime)
-            }
-        }
-        
-        @inline(__always)
-        private func removeExpiredRequests() {
-            let now = DispatchTime.now()
-            while (self.expirations.last ?? now) < now {
-                self.expirations.removeLast()
             }
         }
     }
 }
+
+extension VNCoreMLModel: MLWrapper {}
