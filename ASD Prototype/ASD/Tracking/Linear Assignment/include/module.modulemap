@@ -1,0 +1,12 @@
+//
+//  LAP.modulemap
+//  ASD Prototype
+//
+//  Created by Benjamin Lee on 6/17/25.
+//
+
+module RLAP {
+    header "RLAP.hpp"
+
+    export *
+}
