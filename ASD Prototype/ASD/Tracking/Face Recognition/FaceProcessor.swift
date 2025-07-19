@@ -29,15 +29,14 @@ extension ASD.Tracking {
             let results = self.detector.detect(in: pixelBuffer)
             
             return OrderedSet(results.map { pred in
-                return Detection(rect: pred.boundingBox,
-                                 confidence: pred.confidence,
-                                 transformer: transformer,
-                                 landmarks: pred.landmarks)
+                Detection(rect: pred.boundingBox,
+                          confidence: pred.confidence,
+                          transformer: transformer,
+                          landmarks: pred.landmarks)
             })
         }
         
-        public func embed(pixelBuffer: CVPixelBuffer,
-                          faces detections: any Sequence<Detection>) {
+        public func embed(pixelBuffer: CVPixelBuffer, faces detections: any Sequence<Detection>) {
             self.embedder.embed(faces: detections, in: pixelBuffer)
         }
     }

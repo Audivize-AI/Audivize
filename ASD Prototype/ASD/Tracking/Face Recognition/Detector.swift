@@ -20,9 +20,30 @@ extension ASD.Tracking {
             public let landmarks: [Float]
         }
         
+        // MARK: Precomputed transform factors
+        // landmark transform
+        private static let width = Float(Global.videoWidth)
+        private static let height = Float(Global.videoHeight)
+        
+        private static let landmarkScale = [[Float]](
+            repeating: [width, -width],
+            count: 5
+        ).flatMap{$0}
+        
+        private static let landmarkOffset = [[Float]](
+            repeating: [0, (height+width)/2],
+            count: 5
+        ).flatMap{$0}
+
+        // box scale
+        private static let boxYScale: Float = width / height
+        private static let boxYOffset: Float = (1 - boxYScale) / 2
+        
+        // MARK: Private attributes
         private let model: VNCoreMLModel
         private let request: VNCoreMLRequest
         
+        // MARK: Constructors
         init() {
             print("DEBUG: Loading SCRFD model...")
             let mlModel = try! SCRFD(configuration: MLModelConfiguration())
@@ -32,28 +53,17 @@ extension ASD.Tracking {
             self.request.imageCropAndScaleOption = .scaleFit
         }
         
-        func detect(in pixelBuffer: CVPixelBuffer) -> [Prediction] {
+        // MARK: Public methods
+        public func detect(in pixelBuffer: CVPixelBuffer) -> [Prediction] {
             let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer)
             let width = Float(CVPixelBufferGetWidth(pixelBuffer))
             let height = Float(CVPixelBufferGetHeight(pixelBuffer))
             precondition(width > height)
             
-
             do {
                 try handler.perform([self.request])
                 var predictions: [Prediction] = []
-                
-                // landmark scale
-                let xScale: Float = width
-                let yScale: Float = -width
-                let xOffset: Float = 0.0
-                let yOffset: Float = (height + width) / 2
-                let landmarkScale = [[Float]](repeating: [xScale, yScale], count: 5).flatMap{$0}
-                let landmarkOffset = [[Float]](repeating: [xOffset, yOffset], count: 5).flatMap {$0}
-
-                // box scale
-                let boxYScale: Float = width / height
-                let boxYOffset: Float = (1 - boxYScale) / 2
+                predictions.reserveCapacity(self.request.results!.count)
                 
                 // This is guarunteed to work. Force unwrapping is safe.
                 let results = self.request.results as! [VNCoreMLFeatureValueObservation]
@@ -65,11 +75,13 @@ extension ASD.Tracking {
                 for (confidence, (box, kps)) in zip(confidences, zip(coordinates, landmarks)) {
                     let box = box.scalars
                     let bbox = CGRect(x: CGFloat(box[0]),
-                                      y: CGFloat(box[1] * boxYScale + boxYOffset),
+                                      y: CGFloat(box[1] * FaceDetector.boxYScale + FaceDetector.boxYOffset),
                                       width: CGFloat(box[2]),
-                                      height: CGFloat(box[3] * boxYScale))
+                                      height: CGFloat(box[3] * FaceDetector.boxYScale))
                     
-                    let points = vDSP.add(vDSP.multiply(kps.scalars, landmarkScale), landmarkOffset)
+                    let points = vDSP.add(vDSP.multiply(kps.scalars, FaceDetector.landmarkScale),
+                                          FaceDetector.landmarkOffset)
+                    
                     let score = confidence.scalar!
                     
                     predictions.append(.init(confidence: score,
