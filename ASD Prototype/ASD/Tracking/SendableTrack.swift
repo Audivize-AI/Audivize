@@ -10,6 +10,7 @@ import Foundation
 extension ASD.Tracking {
     public final class SendableTrack: Sendable {
         let id: UUID
+        let iteration: UInt
         let status: Track.Status
         let rect: CGRect
         let misses: Int
@@ -23,6 +24,7 @@ extension ASD.Tracking {
             self.rect = track.rect
             self.misses = -track.hits
             self.embedding = track.embedding
+            self.iteration = track.iteration
         }
     }
 }

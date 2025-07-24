@@ -30,15 +30,15 @@ extension ASD {
                 self.scoreBuffer = .init(capacity: ASDConfiguration.scoreBufferCapacity)
             }
             
-            mutating func updateVideoAndGetLastScore(atTime time: Double, from pixelBuffer: CVPixelBuffer, with track: Tracking.SendableTrack) -> Float {
-                self.videoBuffer.write(from: pixelBuffer, croppedTo: track.rect, skip: false)
+            mutating func updateVideoAndGetLastScore(atTime time: Double, from pixelBuffer: CVPixelBuffer, with track: Tracking.SendableTrack, skip: Bool) -> Float {
+                self.videoBuffer.write(from: pixelBuffer, croppedTo: track.rect, skip: skip)
                 self.track = track
                 self.lastUpdateTime = time
                 return self.scoreBuffer[-1]
             }
             
-            mutating func updateTrackAndGetFrames(atTime time: Double, from pixelBuffer: CVPixelBuffer, with track: Tracking.SendableTrack) -> MLMultiArray {
-                self.videoBuffer.write(from: pixelBuffer, croppedTo: track.rect, skip: true)
+            mutating func updateTrackAndGetFrames(atTime time: Double, from pixelBuffer: CVPixelBuffer, with track: Tracking.SendableTrack, skip: Bool) -> MLMultiArray {
+                self.videoBuffer.write(from: pixelBuffer, croppedTo: track.rect, skip: skip)
                 self.track = track
                 self.lastUpdateTime = time
                 return self.videoBuffer.read(at: -1)
@@ -71,44 +71,39 @@ extension ASD {
         }
         
         // MARK: Updater methods
-        
-        public func updateVideosAndGetSpeakers(atTime time: Double, from tracks: [Tracking.SendableTrack], in pixelBuffer: CVPixelBuffer, orientation: Tracking.CameraOrientation) -> [SendableSpeaker] {
-            var output: [SendableSpeaker] = []
-            output.reserveCapacity(tracks.count)
-            
-            // update videos
-            for track in tracks where track.rect.width.isNaN == false {
-                let score = self.videoTracks[track.id, default: .init(atTime: time, track: track)]
-                    .updateVideoAndGetLastScore(atTime: time, from: pixelBuffer, with: track)
-                
-                output.append(.init(track: track,
-                                    score: score,
-                                    mirrored: orientation.isMirrored))
-            }
-            
-            self.videoTracks = self.videoTracks.filter { _, videoTrack in
-                videoTrack.lastUpdateTime >= time
-            }
-            
-            return output
-        }
-        
-        public func updateTracksAndGetFrames(atTime time: Double, from tracks: [Tracking.SendableTrack], in pixelBuffer: CVPixelBuffer) -> [UUID : MLMultiArray] {
-            // get tracks
-            var updatedFrames: [UUID : MLMultiArray] = [:]
-            updatedFrames.reserveCapacity(tracks.count)
+        public func updateTracks(atTime time: Double,
+                                 from tracks: [Tracking.SendableTrack],
+                                 in pixelBuffer: CVPixelBuffer,
+                                 orientation: Tracking.CameraOrientation,
+                                 skipFrame: Bool)
+            -> (frames: [UUID : MLMultiArray], speakers: [SendableSpeaker])
+        {
+            var frames: [UUID : MLMultiArray] = [:]
+            var speakers: [SendableSpeaker] = []
+            frames.reserveCapacity(tracks.count)
             
             // update video tracks
             for track in tracks {
-                updatedFrames[track.id] = self.videoTracks[track.id, default: .init(atTime: time, track: track)]
-                    .updateTrackAndGetFrames(atTime: time, from: pixelBuffer, with: track)
+                if track.iteration % 6 == 0 {
+                    // ASD; Retrieve video frames
+                    frames[track.id] = self.videoTracks[track.id, default: .init(atTime: time, track: track)]
+                        .updateTrackAndGetFrames(atTime: time, from: pixelBuffer, with: track, skip: skipFrame)
+                } else {
+                    // No ASD; Retrieve last speaker score
+                    let score = self.videoTracks[track.id, default: .init(atTime: time, track: track)]
+                        .updateVideoAndGetLastScore(atTime: time, from: pixelBuffer, with: track, skip: skipFrame)
+                    speakers.append(.init(track: track,
+                                          score: score,
+                                          mirrored: orientation.isMirrored))
+                }
             }
             
+            // delete inactive tracks
             self.videoTracks = self.videoTracks.filter { _, videoTrack in
                 videoTrack.lastUpdateTime >= time
             }
             
-            return updatedFrames
+            return (frames, speakers)
         }
         
         public func updateScoresAndGetScoredSpeakers(atTime time: Double, with scores: [UUID : MLMultiArray], orientation: Tracking.CameraOrientation) -> (speakers: [SendableSpeaker], scores: TimestampedScoreData)

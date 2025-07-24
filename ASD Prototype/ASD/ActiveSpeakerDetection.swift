@@ -23,7 +23,6 @@ extension ASD {
         private let asdCallback: ASDCallback?
         
         private var frameSkipCounter: Int = 0
-        private var gifCounter: Int = 0
         
         /// - Parameters:
         ///   - time current time
@@ -61,15 +60,15 @@ extension ASD {
             CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
             let time = sampleBuffer.presentationTimeStamp.seconds
             
+            Tracking.Track.nextIteration()
+            
             // determine if we skip this frame to update ASD
             self.frameSkipCounter += 1
             let isVideoUpdate = self.frameSkipCounter < 6
             if isVideoUpdate == false {
                 self.frameSkipCounter = 0
-                self.gifCounter += 1
             }
             
-            let gifCounter = self.gifCounter
             let videoProcessor = self.videoProcessor
             let trackingCallback = self.trackingCallback
             let asdCallback = self.asdCallback
@@ -81,45 +80,27 @@ extension ASD {
                 mirrored: (connection.isVideoMirrored) != (cameraPosition == .back)
             )
             
-            Task.detached(priority: .userInitiated) {
+            Task(priority: .userInitiated) {
                 let tracks = await tracker.update(pixelBuffer: pixelBuffer, orientation: orientation)
-                if isVideoUpdate {
-                    // tracking and video buffer update
-                    
-                    let speakers = await videoProcessor.updateVideosAndGetSpeakers(
-                        atTime: time,
-                        from: tracks,
-                        in: pixelBuffer,
-                        orientation: orientation
-                    )
-                    CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
-                    await trackingCallback?(speakers)
-                } else {
-                    // tracking update
-                    let videoInputs = await videoProcessor.updateTracksAndGetFrames(atTime: time, from: tracks, in: pixelBuffer)
-                    CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
-                    
-//                    if gifCounter % 6 == 0 {
-//                        for (id, videoInput) in videoInputs {
-//                            Utils.ML.saveMultiArrayAsGIF(videoInput, to: "\(id) (\(gifCounter / 6)).gif")
-//                        }
-//                    }
-                    
-                    // ASD update
+                var (frames, speakers) = await videoProcessor.updateTracks(atTime: time, from: tracks, in: pixelBuffer, orientation: orientation, skipFrame: !isVideoUpdate)
+                CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
+                
+                if !frames.isEmpty {
                     let newScores = try await ASD.computeSpeakerScores(
                         atTime: time,
-                        from: videoInputs,
+                        from: frames,
                         using: modelPool,
                     )
                     
-                    let (speakers, scores) = await videoProcessor.updateScoresAndGetScoredSpeakers(
+                    let (updatedSpeakers, scores) = await videoProcessor.updateScoresAndGetScoredSpeakers(
                         atTime: time,
                         with: newScores,
                         orientation: orientation
                     )
-                    async let _ = trackingCallback?(speakers)
+                    speakers.append(contentsOf: updatedSpeakers)
                     async let _ = asdCallback?(scores)
                 }
+                async let _ = trackingCallback?(speakers)
             }
         }
         
@@ -127,7 +108,8 @@ extension ASD {
         
         private static func computeSpeakerScores(atTime time: Double,
                                                  from videoInputs: [UUID: MLMultiArray],
-                                                 using modelPool: Utils.ML.ModelPool<ASDVideoModel>) async throws -> [UUID: MLMultiArray]
+                                                 using modelPool: Utils.ML.ModelPool<ASDVideoModel>)
+            async throws -> [UUID: MLMultiArray]
         {
             return try await withThrowingTaskGroup(of: (UUID, MLMultiArray).self) { group in
                 for (id, videoInput) in videoInputs {

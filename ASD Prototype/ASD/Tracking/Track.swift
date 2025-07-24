@@ -8,6 +8,7 @@
 import CoreML
 import Foundation
 import Accelerate
+import Atomics
 
 extension ASD.Tracking {
     final class Track:
@@ -44,9 +45,9 @@ extension ASD.Tracking {
         }
         
         // MARK: public properties
+        public static let iteration = ManagedAtomic<UInt>(0)
         
         public let id = UUID()
-        
         public private(set) var hits: Int = 1
         public private(set) var rect: CGRect = .zero
         public private(set) var costs: Costs = Costs()
@@ -75,7 +76,11 @@ extension ASD.Tracking {
             return String(self.id.uuidString.prefix(4))
         }
         
-        // MARK: private properties
+        public var iteration: UInt {
+            return Track.iteration.load(ordering: .relaxed) &+ UInt(self.id.uuid.0)
+        }
+        
+        // MARK: private properties        
         private let cameraTransformer: CameraCoordinateTransformer
         private let kalmanFilter: VisualKF
         
@@ -160,6 +165,10 @@ extension ASD.Tracking {
         
         static func == (lhs: Track, rhs: Track) -> Bool {
             return lhs.id == rhs.id // Compare properties
+        }
+        
+        static func nextIteration() -> Void {
+            Track.iteration.wrappingIncrement(ordering: .relaxed)
         }
         
         // MARK: public methods

@@ -1,5 +1,5 @@
 {
-  "originHash" : "35b422ed8f88bf312dec21771a666cffd6fc245a5789546871e2fb71311e5d22",
+  "originHash" : "7cd5936026c76f12698646008c77015b7b06d0fedae5eaf52c594499074b0dd2",
   "pins" : [
     {
       "identity" : "cwlcatchexception",
@@ -80,6 +80,15 @@
       "state" : {
         "revision" : "042e1c4d9d19748c9c228f8d4ebc97bb1e339b0b",
         "version" : "1.0.4"
+      }
+    },
+    {
+      "identity" : "swift-atomics",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-atomics.git",
+      "state" : {
+        "revision" : "b601256eab081c0f92f059e12818ac1d4f178ff7",
+        "version" : "1.3.0"
       }
     },
     {
