@@ -17,6 +17,7 @@ extension ASD.Tracking {
         let landmarks: [Float]
         
         var embedding: [Float]?
+        var isFullFace: Bool = true
         
         init (rect: CGRect, confidence: Float, transformer: CameraCoordinateTransformer, landmarks: [Float]) {
             self.rect = rect

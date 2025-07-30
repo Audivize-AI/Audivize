@@ -48,7 +48,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
                 print("Video Error: \(error)")
             }
         } else {
-            self.diarizer?.diarize(from: sampleBuffer)
+//            self.diarizer?.diarize(from: sampleBuffer)
         }
     }
     

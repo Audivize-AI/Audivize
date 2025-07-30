@@ -2,7 +2,6 @@
   "images" : [
     {
       "extent" : "full-screen",
-      "filename" : "SRC-6 3.jpg",
       "idiom" : "iphone",
       "minimum-system-version" : "12.0",
       "orientation" : "portrait",
@@ -11,7 +10,6 @@
     },
     {
       "extent" : "full-screen",
-      "filename" : "SRC-6.jpg",
       "idiom" : "iphone",
       "minimum-system-version" : "12.0",
       "orientation" : "landscape",
@@ -20,7 +18,6 @@
     },
     {
       "extent" : "full-screen",
-      "filename" : "SRC-6 2.jpg",
       "idiom" : "iphone",
       "minimum-system-version" : "12.0",
       "orientation" : "portrait",
@@ -29,7 +26,6 @@
     },
     {
       "extent" : "full-screen",
-      "filename" : "SRC-6 1.jpg",
       "idiom" : "iphone",
       "minimum-system-version" : "12.0",
       "orientation" : "landscape",

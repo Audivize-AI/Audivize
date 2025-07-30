@@ -62,7 +62,7 @@ extension ASD {
         
         // MARK: Constructors
         
-        public init(capacity: Int = 53) {
+        public init(capacity: Int = 60) {
             self.writeIndex = 0
             self.buffer = .init(repeating: .init(), count: capacity)
         }

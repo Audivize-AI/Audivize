@@ -76,12 +76,17 @@ extension ASD.Tracking {
         // MARK: public methods
         
         public func update(pixelBuffer: CVPixelBuffer, orientation: CameraOrientation? = nil) -> [SendableTrack] {
+            Track.nextIteration()
+            
             if let orientation = orientation {
                 self.cameraTransformer.orientation = orientation
             }
             
             // predict track motion
             for track in self.activeTracks {
+                track.predict()
+            }
+            for track in self.inactiveTracks where track.hits > 0 {
                 track.predict()
             }
             for track in self.pendingTracks {
@@ -131,7 +136,7 @@ extension ASD.Tracking {
             
             // assign inactive tracks
             progress.tracks = self.inactiveTracks
-            self.applyInitialCostFilter(&progress, costFunction: self.meetsAppearanceCostCutoff(TrackingConfiguration.maxReIDCost))
+            self.applyInitialCostFilter(&progress, costFunction: self.meetsReIDCostCutoff)
             self.assignWithRLAP(&progress)
             self.registerMisses(&progress, tracks: &self.inactiveTracks, trackStatus: .inactive)
             
@@ -167,6 +172,14 @@ extension ASD.Tracking {
             costs.confidence = track.confidenceCost(for: detection)
             costs.ocm = track.velocityCost(for: detection)
             return true
+        }
+        
+        @inline(__always)
+        private func meetsReIDCostCutoff(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool {
+            if track.hits > 0 && track.iou(with: detection) < TrackingConfiguration.minIou {
+                return false
+            }
+            return self.meetsAppearanceCostCutoff(TrackingConfiguration.maxReIDCost)(track, detection, costs)
         }
         
         /// Looks at all possible (Track, Detection) pairings and determines which ones meet the cost cutoffs.

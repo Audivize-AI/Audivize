@@ -11,7 +11,7 @@ extension ASD.Tracking {
     struct TrackingConfiguration {
         // activation, confirmation, and deletion
         static let confirmationThreshold: Int                   = 30
-        static let activationThreshold: Int                     = 2
+        static let activationThreshold: Int                     = 5
         static let deactivationThreshold: Int                   = 20
         static let deletionThreshold: Int                       = 10 * 30
         

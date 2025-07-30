@@ -60,39 +60,38 @@ extension ASD.Tracking {
             let height = Float(CVPixelBufferGetHeight(pixelBuffer))
             precondition(width > height)
             
-            do {
-                try handler.perform([self.request])
-                var predictions: [Prediction] = []
-                predictions.reserveCapacity(self.request.results!.count)
-                
-                // This is guarunteed to work. Force unwrapping is safe.
-                let results = self.request.results as! [VNCoreMLFeatureValueObservation]
-                let confidences = results[2].featureValue.shapedArrayValue(of: Float.self)!
-                let coordinates = results[1].featureValue.shapedArrayValue(of: Float.self)!
-                let landmarks = results[0].featureValue.shapedArrayValue(of: Float.self)!
-                
-                // transform landmarks and boxes
-                for (confidence, (box, kps)) in zip(confidences, zip(coordinates, landmarks)) {
-                    let box = box.scalars
-                    let bbox = CGRect(x: CGFloat(box[0]),
-                                      y: CGFloat(box[1] * FaceDetector.boxYScale + FaceDetector.boxYOffset),
-                                      width: CGFloat(box[2]),
-                                      height: CGFloat(box[3] * FaceDetector.boxYScale))
-                    
-                    let points = vDSP.add(vDSP.multiply(kps.scalars, FaceDetector.landmarkScale),
-                                          FaceDetector.landmarkOffset)
-                    
-                    let score = confidence.scalar!
-                    
-                    predictions.append(.init(confidence: score,
-                                             boundingBox: bbox,
-                                             landmarks: points))
-                }
-                return predictions
-            } catch {
-                print("Detector error:", error)
+            
+            guard let _ = try? handler.perform([self.request]) else {
                 return []
             }
+                
+            var predictions: [Prediction] = []
+            predictions.reserveCapacity(self.request.results!.count)
+            
+            // This is guarunteed to work. Force unwrapping is safe.
+            let results = self.request.results as! [VNCoreMLFeatureValueObservation]
+            let confidences = results[2].featureValue.shapedArrayValue(of: Float.self)!
+            let coordinates = results[1].featureValue.shapedArrayValue(of: Float.self)!
+            let landmarks = results[0].featureValue.shapedArrayValue(of: Float.self)!
+            
+            // transform landmarks and boxes
+            for (confidence, (box, kps)) in zip(confidences, zip(coordinates, landmarks)) {
+                let box = box.scalars
+                let bbox = CGRect(x: CGFloat(box[0]),
+                                  y: CGFloat(box[1] * FaceDetector.boxYScale + FaceDetector.boxYOffset),
+                                  width: CGFloat(box[2]),
+                                  height: CGFloat(box[3] * FaceDetector.boxYScale))
+                
+                let points = vDSP.add(vDSP.multiply(kps.scalars, FaceDetector.landmarkScale),
+                                      FaceDetector.landmarkOffset)
+                
+                let score = confidence.scalar!
+                
+                predictions.append(.init(confidence: score,
+                                         boundingBox: bbox,
+                                         landmarks: points))
+            }
+            return predictions
         }
     }
 }

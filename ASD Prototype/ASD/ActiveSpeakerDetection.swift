@@ -16,6 +16,7 @@ extension ASD {
         typealias ASDCallback = @Sendable (VideoProcessor.TimestampedScoreData) async -> Void
         typealias MergeCallback = @Sendable (MergeRequest) -> Void
         
+        // MARK: Private attributes
         private let tracker: Tracking.Tracker
         private let videoProcessor: VideoProcessor
         private let modelPool: Utils.ML.ModelPool<ASDVideoModel>
@@ -24,6 +25,7 @@ extension ASD {
         
         private var frameSkipCounter: Int = 0
         
+        // MARK: Constructors
         /// - Parameters:
         ///   - time current time
         ///   - videoSize video input size
@@ -55,12 +57,17 @@ extension ASD {
             }
         }
         
+        // MARK: Public methods
+        
+        /// Update active speaker detection
+        /// - Parameters:
+        ///   - sampleBuffer video sample buffer
+        ///   - cameraPosition camera position (front or back)
+        ///   - connection capture connection.
         public func update(videoSample sampleBuffer: CMSampleBuffer, cameraPosition: AVCaptureDevice.Position, connection: AVCaptureConnection) throws {
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
             CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
             let time = sampleBuffer.presentationTimeStamp.seconds
-            
-            Tracking.Track.nextIteration()
             
             // determine if we skip this frame to update ASD
             self.frameSkipCounter += 1
@@ -81,26 +88,41 @@ extension ASD {
             )
             
             Task(priority: .userInitiated) {
-                let tracks = await tracker.update(pixelBuffer: pixelBuffer, orientation: orientation)
-                var (frames, speakers) = await videoProcessor.updateTracks(atTime: time, from: tracks, in: pixelBuffer, orientation: orientation, skipFrame: !isVideoUpdate)
+                // update tracker
+                let tracks = await tracker.update(
+                    pixelBuffer: pixelBuffer,
+                    orientation: orientation
+                )
+                
+                // update video frames
+                var (frames, speakers) = await videoProcessor.updateTracks(
+                    atTime: time,
+                    from: tracks,
+                    in: pixelBuffer,
+                    orientation: orientation,
+                    skipFrame: !isVideoUpdate
+                )
+                
+                // unlock pixel buffer
                 CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
                 
+                // active speaker detection
                 if !frames.isEmpty {
-                    let newScores = try await ASD.computeSpeakerScores(
+                    let speakerScores = try await ASD.computeSpeakerScores(
                         atTime: time,
                         from: frames,
                         using: modelPool,
                     )
                     
-                    let (updatedSpeakers, scores) = await videoProcessor.updateScoresAndGetScoredSpeakers(
+                    let (remainingSpeakers, scores) = await videoProcessor.updateScoresAndGetScoredSpeakers(
                         atTime: time,
-                        with: newScores,
+                        with: speakerScores,
                         orientation: orientation
                     )
-                    speakers.append(contentsOf: updatedSpeakers)
+                    speakers.append(contentsOf: remainingSpeakers)
                     async let _ = asdCallback?(scores)
                 }
-                async let _ = trackingCallback?(speakers)
+                await trackingCallback?(speakers)
             }
         }
         
@@ -113,7 +135,7 @@ extension ASD {
         {
             return try await withThrowingTaskGroup(of: (UUID, MLMultiArray).self) { group in
                 for (id, videoInput) in videoInputs {
-                    group.addTask {
+                    group.addTask(priority: .userInitiated) {
                         let input = ASDVideoModelInput(videoInput: videoInput)
                         let scores = try await modelPool.withModel { model in
                             try model.prediction(input: input).scores

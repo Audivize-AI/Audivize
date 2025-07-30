@@ -84,7 +84,7 @@ extension ASD {
             
             // update video tracks
             for track in tracks {
-                if track.iteration % 6 == 0 {
+                if track.iteration % ASDConfiguration.framesPerUpdate == 0 {
                     // ASD; Retrieve video frames
                     frames[track.id] = self.videoTracks[track.id, default: .init(atTime: time, track: track)]
                         .updateTrackAndGetFrames(atTime: time, from: pixelBuffer, with: track, skip: skipFrame)

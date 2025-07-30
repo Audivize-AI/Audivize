@@ -33,7 +33,7 @@ extension ASD {
         }
         
         public func encode(atTime time: Double) throws -> MLMultiArray {
-            let features = self.audioFeatures.read(atTime: time)
+//            let features = self.audioFeatures.read(atTime: time)
 //            let input = ASDAudioEncoderInput(audioFeatures: features)
 //            return try self.model.prediction(input: input).audioEmbedding
             return .init()

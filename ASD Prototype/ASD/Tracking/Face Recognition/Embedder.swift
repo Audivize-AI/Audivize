@@ -58,12 +58,65 @@ extension ASD.Tracking {
                           in pixelBuffer: CVPixelBuffer) {
             for detection in detections {
                 let transform = FaceEmbedder.computeAlignmentTransform(detection.landmarks)
+                
                 if let alignedImage = FaceEmbedder.align(image: pixelBuffer, with: transform) {
                     let input = GhostFaceNetInput(image: alignedImage)
                     detection.embedding = try? self.embedderModel.prediction(input: input)
                         .embeddingShapedArray.scalars
+                    
+                    // check if the full face is in frame
+                    if detection.embedding == nil { continue }
+                    let inverseTransform = invertAffine(transform)
+                    
+                    let corners = [
+                        CGPoint(x: 0, y: 0).applying(inverseTransform).applying(transform),
+                        CGPoint(x: 112, y: 0).applying(inverseTransform).applying(transform),
+                        CGPoint(x: 112, y: 112).applying(inverseTransform).applying(transform),
+                        CGPoint(x: 0, y: 112).applying(inverseTransform).applying(transform)
+                    ]
+                    var minX: CGFloat = .greatestFiniteMagnitude
+                    var minY: CGFloat = .greatestFiniteMagnitude
+                    var maxX: CGFloat = -.greatestFiniteMagnitude
+                    var maxY: CGFloat = -.greatestFiniteMagnitude
+                    
+                    for corner in corners {
+                        minX = min(minX, corner.x)
+                        minY = min(minY, corner.y)
+                        maxX = max(maxX, corner.x)
+                        maxY = max(maxY, corner.y)
+                    }
+                    print(corners)
+                
+                    if minX < 0 || minY < 0 || maxX > Global.videoWidth || maxY > Global.videoHeight {
+//                        detection.isFullFace = false
+                    }
                 }
             }
+        }
+        
+        func invertAffine(_ T: CGAffineTransform) -> CGAffineTransform {
+            let r00 = T.a, r01 = T.c, tx = T.tx
+            let r10 = T.b, r11 = T.d, ty = T.ty
+            
+            // 1) determinant of the 2×2 linear part
+            let det = r00*r11 - r01*r10
+            guard det != 0 else { return T }
+            let invDet = 1.0 / det
+            
+            // 2) inverse of R = [[r00,r01],[r10,r11]]
+            let i00 =  r11 * invDet
+            let i01 = -r01 * invDet
+            let i10 = -r10 * invDet
+            let i11 =  r00 * invDet
+            
+            // 3) inverse translation = -R⁻¹ * t
+            let itx = -(i00*tx + i01*ty)
+            let ity = -(i10*tx + i11*ty)
+            
+            // 4) pack back into row-major 3×3
+            return .init(
+                a: i00, b: i10, c: i01, d: i11, tx: itx, ty: ity
+            )
         }
         
         // MARK: Private static helpers

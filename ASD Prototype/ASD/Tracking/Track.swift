@@ -103,7 +103,7 @@ extension ASD.Tracking {
                 throw TrackInitializationError.missingEmbedding
             }
             
-            self.embedding = embedding
+            self.embedding = vDSP.unitVector(embedding)
             self.iterationsUntilEmbeddingUpdate = TrackingConfiguration.iterationsPerEmbeddingUpdate
             
             self.appearanceCostKF = UnivariateKF(
@@ -132,7 +132,7 @@ extension ASD.Tracking {
                     transformer: CameraCoordinateTransformer,
                     detection: Detection? = nil) throws {
             self.cameraTransformer = transformer
-            self.embedding = embedding
+            self.embedding = vDSP.unitVector(embedding)
             
             if let det = detection {
                 self.rect = det.rect
@@ -203,8 +203,15 @@ extension ASD.Tracking {
             var wasKfActivated = false
             
             if !self.status.isActive {
-                if self.hits < 0 { self.hits = 1 }
-                else { self.hits += 1 }
+                if self.hits < 0 {
+                    self.hits = 1
+                    self.lastConfidence = detection.confidence
+                    self.kalmanFilter.activate(detection.kfRect)
+                    wasKfActivated = true
+                }
+                else if detection.isFullFace {
+                    self.hits += 1
+                }
                 
                 // check if the track is ready for activation
                 let threshold = (
@@ -249,7 +256,7 @@ extension ASD.Tracking {
             /*  If the appearance cost was calculated then the detection's embedding must   *
              *  have also been computed. This is because the embedding is necessary to      *
              *  compute the appearance cost. Also, don't update embedding when inactive.    */
-            if self.status.isInactive == false && costs.hasAppearance {
+            if self.status.isInactive == false && costs.hasAppearance && detection.isFullFace {
                 self.updateEmbedding(detection: detection, appearanceCost: costs.appearance)
             }
             
@@ -334,18 +341,23 @@ extension ASD.Tracking {
                 return
             }
             
-            guard let newEmbedding = detection.embedding else {
+            guard var newEmbedding = detection.embedding else {
                 return
             }
+            
+            // normalize the new embedding
+            vDSP.unitVector(newEmbedding, result: &newEmbedding)
             
             var alpha = TrackingConfiguration.embeddingAlpha
             alpha *= (conf - minConf) / (1.0 - minConf)
             alpha *= exp(-appearanceCost / (self.averageAppearanceCost + 1e-10))
             self.appearanceCostKF.step(measurement: appearanceCost)
             vDSP.add(self.embedding,
-                     vDSP.multiply(alpha,
-                                   vDSP.subtract(newEmbedding, self.embedding)),
+                     vDSP.multiply(alpha, vDSP.subtract(newEmbedding, self.embedding)),
                      result: &self.embedding)
+            
+            // renormalize
+            vDSP.unitVector(embedding, result: &embedding)
             
             self.iterationsUntilEmbeddingUpdate = TrackingConfiguration.iterationsPerEmbeddingUpdate
         }

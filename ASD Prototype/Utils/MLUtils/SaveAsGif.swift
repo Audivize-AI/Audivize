@@ -9,6 +9,7 @@ import Foundation
 import CoreML
 import UIKit
 import MobileCoreServices
+import UniformTypeIdentifiers
 
 
 extension Utils.ML {
@@ -63,7 +64,7 @@ extension Utils.ML {
         let gifURL = docs.appendingPathComponent(to)
 
         // Create GIF
-        guard let dest = CGImageDestinationCreateWithURL(gifURL as CFURL, kUTTypeGIF, frames.count, nil) else {
+        guard let dest = CGImageDestinationCreateWithURL(gifURL as CFURL, UTType.gif as! CFString, frames.count, nil) else {
             print("❌ Could not create GIF destination at \(gifURL.path)")
             return
         }
