@@ -362,6 +362,7 @@ extension ASD.Tracking {
             }
         }
         
+        @inline(__always)
         private func registerMisses(_ progress: inout AssignmentProgress, tracks: inout OrderedSet<Track>, trackStatus: Track.Status) {
             for track in progress.tracks {
                 if track.status != trackStatus {

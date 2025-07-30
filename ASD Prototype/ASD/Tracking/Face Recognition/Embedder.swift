@@ -87,7 +87,7 @@ extension ASD.Tracking {
                         maxY = max(maxY, corner.y)
                     }
                 
-                    let epsilon = CGFloat(0.01)
+                    let epsilon: CGFloat = 0.01
                     if minX < -epsilon || minY < -epsilon || maxX > Global.videoWidth + epsilon || maxY > Global.videoHeight + epsilon {
                         detection.isFullFace = false
                     }
