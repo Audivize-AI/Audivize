@@ -18,11 +18,11 @@ extension ASD.Tracking {
         
         /// Landmark reference points for a 112x112 image (Umayama destination points)
         private static let dst: [Float] = [
-            38.2946, 51.6963, /// Left eye center
-            73.5318, 51.5014, /// Right eye center
-            56.0252, 71.7366, /// Nose
-            41.5493, 92.3655, /// Left mouth corner
-            70.7299, 92.2041  /// Right mouth corner
+            38.2946, 112 - 51.6963, /// Left eye center
+            73.5318, 112 - 51.5014, /// Right eye center
+            56.0252, 112 - 71.7366, /// Nose
+            41.5493, 112 - 92.3655, /// Left mouth corner
+            70.7299, 112 - 92.2041  /// Right mouth corner
         ]
         
         /// 1 / (number of reference points)
@@ -69,26 +69,27 @@ extension ASD.Tracking {
                     let inverseTransform = invertAffine(transform)
                     
                     let corners = [
-                        CGPoint(x: 0, y: 0).applying(inverseTransform).applying(transform),
-                        CGPoint(x: 112, y: 0).applying(inverseTransform).applying(transform),
-                        CGPoint(x: 112, y: 112).applying(inverseTransform).applying(transform),
-                        CGPoint(x: 0, y: 112).applying(inverseTransform).applying(transform)
+                        CGPoint(x: 0, y: 0).applying(inverseTransform),
+                        CGPoint(x: 112, y: 0).applying(inverseTransform),
+                        CGPoint(x: 112, y: 112).applying(inverseTransform),
+                        CGPoint(x: 0, y: 112).applying(inverseTransform)
                     ]
+                    
                     var minX: CGFloat = .greatestFiniteMagnitude
                     var minY: CGFloat = .greatestFiniteMagnitude
                     var maxX: CGFloat = -.greatestFiniteMagnitude
                     var maxY: CGFloat = -.greatestFiniteMagnitude
-                    
+                               
                     for corner in corners {
                         minX = min(minX, corner.x)
                         minY = min(minY, corner.y)
                         maxX = max(maxX, corner.x)
                         maxY = max(maxY, corner.y)
                     }
-                    print(corners)
                 
-                    if minX < 0 || minY < 0 || maxX > Global.videoWidth || maxY > Global.videoHeight {
-//                        detection.isFullFace = false
+                    let epsilon = CGFloat(0.01)
+                    if minX < -epsilon || minY < -epsilon || maxX > Global.videoWidth + epsilon || maxY > Global.videoHeight + epsilon {
+                        detection.isFullFace = false
                     }
                 }
             }
