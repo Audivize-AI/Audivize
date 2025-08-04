@@ -178,7 +178,7 @@ struct CameraPreview: UIViewRepresentable {
         view.layer.addSublayer(cameraManager.previewLayer)
         
         // Setup the drawing layer
-        let drawingView = DrawingView(frame: view.bounds, videoSize: Global.videoSize, orientation: .leftMirrored)
+        let drawingView = DrawingView(frame: view.bounds, videoSize: CaptureConfiguration.videoSize, orientation: .leftMirrored)
         
         drawingView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(drawingView)

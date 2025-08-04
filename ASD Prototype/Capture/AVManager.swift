@@ -101,7 +101,8 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         // This method should only be called from the sessionQueue
         
         let session = AVCaptureSession()
-        session.sessionPreset = Global.videoPreset
+        session.sessionPreset = CaptureConfiguration.videoPreset
+        
         
         // Set up camera
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -136,7 +137,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         let currentTime = CMClockGetTime(session.synchronizationClock!).seconds
         self.asd = .init(
             atTime: currentTime,
-            videoSize: Global.videoSize,
+            videoSize: CaptureConfiguration.videoSize,
             cameraAngle: cameraAngle,
             onTrackComplete: { speakers in
                 Task.detached { @MainActor in
@@ -162,10 +163,14 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     private func setupCamera(for session: AVCaptureSession, cameraAngle: CGFloat) {
         self.videoCaptureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
         
-        guard let videoCaptureDevice = self.videoCaptureDevice else {
+        guard let videoCaptureDevice else {
             print("Error: No back camera found.")
             return
         }
+        
+//        try? videoCaptureDevice.lockForConfiguration()
+//        videoCaptureDevice.activeFormat = CaptureConfiguration.frontCameraMaxFormat!
+//        videoCaptureDevice.unlockForConfiguration()
         
         do {
             let input = try AVCaptureDeviceInput(device: videoCaptureDevice)
@@ -176,6 +181,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
             print("Error setting up camera input: \(error)")
             return
         }
+        
         
         videoOutput.setSampleBufferDelegate(self, queue: sessionQueue)
         videoOutput.alwaysDiscardsLateVideoFrames = true

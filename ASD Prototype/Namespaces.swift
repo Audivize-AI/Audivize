@@ -5,4 +5,3 @@ enum Utils {
 enum ASD {
     enum Tracking {}
 }
-enum Global {}    

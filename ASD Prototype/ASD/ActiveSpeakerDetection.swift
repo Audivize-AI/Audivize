@@ -131,20 +131,24 @@ extension ASD {
         private static func computeSpeakerScores(atTime time: Double,
                                                  from videoInputs: [UUID: MLMultiArray],
                                                  using modelPool: Utils.ML.ModelPool<ASDVideoModel>)
-            async throws -> [UUID: MLMultiArray]
+            async throws -> [UUID: [Float]]
         {
-            return try await withThrowingTaskGroup(of: (UUID, MLMultiArray).self) { group in
+            return try await withThrowingTaskGroup(of: (UUID, [Float]).self) { group in
                 for (id, videoInput) in videoInputs {
                     group.addTask(priority: .userInitiated) {
                         let input = ASDVideoModelInput(videoInput: videoInput)
                         let scores = try await modelPool.withModel { model in
-                            try model.prediction(input: input).scores
+                            let start = Date()
+                            let result = try model.prediction(input: input).scoresShapedArray.scalars
+                            let end = Date()
+//                            print("Active Speaker Detection in \(end.timeIntervalSince(start)) seconds")
+                            return result
                         }
                         return (id, scores)
                     }
                 }
                 
-                var results: [UUID: MLMultiArray] = [:]
+                var results: [UUID: [Float]] = [:]
                 
                 for try await (id, scores) in group {
                     results[id] = scores

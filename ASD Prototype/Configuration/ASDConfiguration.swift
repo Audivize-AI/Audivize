@@ -14,7 +14,7 @@ extension ASD {
         static let frameSize: CGSize = .init(width: 112, height: 112) /// Size of the ASD model input
         
         // video buffer description
-        static let videoLength: Int = 25                /// Number of frames used for ASD
+        static let videoLength: Int = 50                /// Number of frames used for ASD
         static let videoBufferFrontPadding: Int = 0     /// Number of frames to allow ASD to lag
         static let videoBufferBackPadding: Int = 25     /// Number of frames before the video buffer rolls over
         

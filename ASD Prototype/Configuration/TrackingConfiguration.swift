@@ -30,7 +30,7 @@ extension ASD.Tracking {
         static let minIou: Float            = 0.2
         static let maxAppearanceCost: Float = 1.2
         static let maxTeleportCost: Float   = 0.4
-        static let maxReIDCost: Float       = 0.4
+        static let maxReIDCost: Float       = 0.65
         
         // weights
         static let ocmWeight: Float         = 0.2

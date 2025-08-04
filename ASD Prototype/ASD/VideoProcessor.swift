@@ -106,7 +106,7 @@ extension ASD {
             return (frames, speakers)
         }
         
-        public func updateScoresAndGetScoredSpeakers(atTime time: Double, with scores: [UUID : MLMultiArray], orientation: Tracking.CameraOrientation) -> (speakers: [SendableSpeaker], scores: TimestampedScoreData)
+        public func updateScoresAndGetScoredSpeakers(atTime time: Double, with scores: [UUID : [Float]], orientation: Tracking.CameraOrientation) -> (speakers: [SendableSpeaker], scores: TimestampedScoreData)
         {
             var speakers: [SendableSpeaker] = []
             speakers.reserveCapacity(self.videoTracks.count)

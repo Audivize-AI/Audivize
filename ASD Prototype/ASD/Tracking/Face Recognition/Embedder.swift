@@ -66,10 +66,7 @@ extension ASD.Tracking {
                     
                     // check if the full face is in frame
                     if detection.embedding == nil { continue }
-                    let start = Date()
                     let inverseTransform = transform.inverted()
-                    let end = Date()
-                    print("inverseAffine: ",  end.timeIntervalSince(start))
                     let corners = [
                         CGPoint(x: 0, y: 0).applying(inverseTransform),
                         CGPoint(x: 112, y: 0).applying(inverseTransform),
@@ -90,7 +87,7 @@ extension ASD.Tracking {
                     }
                 
                     let epsilon: CGFloat = 0.01
-                    if minX < -epsilon || minY < -epsilon || maxX > Global.videoWidth + epsilon || maxY > Global.videoHeight + epsilon {
+                    if minX < -epsilon || minY < -epsilon || maxX > CaptureConfiguration.videoWidth + epsilon || maxY > CaptureConfiguration.videoHeight + epsilon {
                         detection.isFullFace = false
                     }
                 }

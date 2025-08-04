@@ -100,18 +100,16 @@ extension ASD {
         ///   - time the time at which the input was processed or added
         ///   - source the data source from which to write
         ///   - offset how many indices to skip
-        public func write(from source: MLMultiArray, count numNew: Int) {
+        public func write(from source: [Float], count numNew: Int) {
             var i = Utils.mod(self.writeIndex + numNew - source.count, self.bufferSize)
             
-            source.withUnsafeBufferPointer(ofType: Float.self) { ptr in
-                for score in ptr[0..<source.count-numNew] {
-                    self.buffer[i].update(with: score)
-                    Utils.advance_index(&i, by: 1, modulo: self.bufferSize)
-                }
-                for score in ptr[source.count-numNew..<source.count] {
-                    self.buffer[self.writeIndex].reset(to: score)
-                    Utils.advance_index(&self.writeIndex, by: 1, modulo: self.bufferSize)
-                }
+            for score in source[0..<source.count-numNew] {
+                self.buffer[i].update(with: score)
+                Utils.advance_index(&i, by: 1, modulo: self.bufferSize)
+            }
+            for score in source[source.count-numNew..<source.count] {
+                self.buffer[self.writeIndex].reset(to: score)
+                Utils.advance_index(&self.writeIndex, by: 1, modulo: self.bufferSize)
             }
         }
         
