@@ -5,10 +5,10 @@
 //  Created by Benjamin Lee on 6/23/25.
 //
 
-import Foundation
+@preconcurrency import Foundation
 @preconcurrency import CoreML
 @preconcurrency import AVFoundation
-import Vision
+@preconcurrency import Vision
 
 extension ASD {
     final class ASD {
@@ -82,7 +82,7 @@ extension ASD {
             let modelPool = self.modelPool
             let gifCounter = self.gifCounter
             
-            Task.detached {
+            Task {
                 if isVideoUpdate {
                     await videoProcessor.updateVideos(atTime: time, from: pixelBuffer, connection: connection, skip: false)
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
@@ -92,7 +92,8 @@ extension ASD {
                 } else {
                     async let _ = videoProcessor.updateVideos(atTime: time, from: pixelBuffer, connection: connection, skip: true)
                     async let audioEmbedAsync = try audioEncoder.encode(atTime: asdTime)
-                    let (videoInputs, audioEmbed) = await (videoProcessor.getFrames(atTime: asdTime), try audioEmbedAsync)
+                    let videoInputs = await videoProcessor.getFrames(atTime: asdTime)
+                    let audioEmbed = try await audioEmbedAsync
 //                    let videoInputs = await videoProcessor.getFrames(atTime: asdTime)
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
                     

@@ -1,6 +1,6 @@
 import Foundation
-import Accelerate
-import CoreAudio
+@preconcurrency import Accelerate
+@preconcurrency import CoreAudio
 
 // MARK: - Feature Extraction
 

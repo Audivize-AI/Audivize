@@ -6,8 +6,8 @@
 //
 
 import Foundation
-import CoreML
-import AVFoundation
+@preconcurrency import AVFoundation
+@preconcurrency import CoreML
 
 
 extension ASD {
@@ -89,16 +89,16 @@ extension ASD {
         }
         
         // MARK: Getter methods
-        public func getFrames(atTime time: Double?) -> [UUID : MLMultiArray] {
-            let index = self.videoTimestamps.indexOf(time ?? self.lastVideoTime)
-            return Dictionary(uniqueKeysWithValues: self.speakers.map { id, speaker in
+        public func getFrames(atTime time: Double) -> [UUID : MLMultiArray] {
+            let index = self.videoTimestamps.indexOf(time)
+            return Dictionary<UUID, MLMultiArray>(uniqueKeysWithValues: self.speakers.map { id, speaker in
                 return (id, speaker.videoBuffer.read(at: index))
             })
         }
         
         // MARK: Getter methods
         public func getFrames(at index: Int = -1) -> [UUID : MLMultiArray] {
-            return Dictionary(uniqueKeysWithValues: self.speakers.map { id, speaker in
+            return .init(uniqueKeysWithValues: self.speakers.map { id, speaker in
                 return (id, speaker.videoBuffer.read(at: index))
             })
         }
@@ -128,3 +128,5 @@ extension ASD {
         }
     }
 }
+
+extension MLMultiArray: @unchecked @retroactive Sendable {}
