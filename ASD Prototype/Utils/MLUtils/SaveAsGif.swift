@@ -31,18 +31,18 @@ extension Utils.ML {
         for t in 0..<T {
             // Extract 2D slice and normalize
             var plane = [Float](repeating: 0, count: H * W)
-            var minv = Float.greatestFiniteMagnitude
-            var maxv = -Float.greatestFiniteMagnitude
+            let bias: Float = -2.46504739336
+            let scale: Float = 5.92417061611
             for y in 0..<H {
                 for x in 0..<W {
                     let v = array[[0, t, y, x] as [NSNumber]].floatValue
                     plane[y * W + x] = v
-                    minv = min(minv, v)
-                    maxv = max(maxv, v)
                 }
             }
-            let range = (maxv - minv) != 0 ? (maxv - minv) : 1
-            let pixels = plane.map { UInt8(clamping: Int((($0 - minv) / range) * 255)) }
+//            print((minv - bias) / scale, (maxv - bias) / scale)
+            let pixels = plane.map {
+                UInt8( clamping: Int( ($0 - bias) / scale * 255.0 ) )
+            }
 
             // Create CGImage from grayscale data
             guard let cfData = CFDataCreate(nil, pixels, W * H) else { continue }
@@ -61,10 +61,24 @@ extension Utils.ML {
 
         // Determine output URL in Documents
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let gifURL = docs.appendingPathComponent(to)
+        let gifURL = docs.appendingPathComponent("Fixed Gifs").appendingPathComponent(to)
+        try? FileManager.default.createDirectory(at: gifURL.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: gifURL)
+        
+        // Pick the correct type identifier
+        let gifUTI: CFString
+        if #available(iOS 14.0, *) {
+            gifUTI = UTType.gif.identifier as CFString
+        } else {
+            gifUTI = kUTTypeGIF
+        }
+
+        // Frames must be non-empty
+        guard frames.isEmpty == false else { print("no frames"); return }
 
         // Create GIF
-        guard let dest = CGImageDestinationCreateWithURL(gifURL as CFURL, UTType.gif as! CFString, frames.count, nil) else {
+        guard let dest = CGImageDestinationCreateWithURL(gifURL as CFURL, gifUTI, frames.count, nil) else {
             print("❌ Could not create GIF destination at \(gifURL.path)")
             return
         }
@@ -80,7 +94,7 @@ extension Utils.ML {
         // Per-frame properties
         let frameProperties = [
             kCGImagePropertyGIFDictionary: [
-                kCGImagePropertyGIFDelayTime: 0.1  // seconds per frame
+                kCGImagePropertyGIFDelayTime: 1.0 / 25.0  // seconds per frame
             ]
         ] as CFDictionary
 

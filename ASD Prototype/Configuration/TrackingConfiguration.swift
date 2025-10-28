@@ -28,7 +28,8 @@ extension ASD.Tracking {
         
         // gating thresholds
         static let minIou: Float            = 0.2
-        static let maxAppearanceCost: Float = 1.2
+        static let maxMahaCost: Float       = 5.0
+        static let maxAppearanceCost: Float = 0.6
         static let maxTeleportCost: Float   = 0.4
         static let maxReIDCost: Float       = 0.65
         

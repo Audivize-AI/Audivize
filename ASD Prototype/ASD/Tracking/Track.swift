@@ -5,7 +5,6 @@
 //  Created by Benjamin Lee on 6/17/25.
 //
 
-import CoreML
 import Foundation
 import Accelerate
 import Atomics
@@ -48,6 +47,7 @@ extension ASD.Tracking {
         public static let iteration = ManagedAtomic<UInt>(0)
         
         public let id = UUID()
+        public var name: String? = nil
         public private(set) var hits: Int = 1
         public private(set) var rect: CGRect = .zero
         public private(set) var costs: Costs = Costs()
@@ -55,6 +55,7 @@ extension ASD.Tracking {
         public private(set) var embedding: [Float]
         public private(set) var isPermanent: Bool = false
         public private(set) var expectedConfidence: Float = 0.0
+        public private(set) var landmarks: [CGPoint] = []
         public var averageAppearanceCost: Float {
             return self.appearanceCostKF.x
         }
@@ -87,7 +88,7 @@ extension ASD.Tracking {
         private var iterationsUntilEmbeddingUpdate: Int
         private var lastConfidence: Float?
         private var lastConfidence2: Float?
-        
+         
         private var appearanceCostKF: UnivariateKF
         
         // MARK: constructors
@@ -202,6 +203,13 @@ extension ASD.Tracking {
             // register hit
             var wasKfActivated = false
             
+            self.landmarks = stride(from: 0, to: 10, by: 2).map { i in
+                CGPoint(
+                    x: CGFloat(detection.landmarks[i]),
+                    y: CGFloat(detection.landmarks[i + 1])
+                )
+            }
+            
             if !self.status.isActive {
                 if self.hits < 0 {
                     self.hits = 1
@@ -220,15 +228,25 @@ extension ASD.Tracking {
                         : TrackingConfiguration.activationThreshold
                 )
                 
+                // activate
                 if self.hits >= threshold {
                     self.hits = 0
                     if status.isInactive {
                         self.kalmanFilter.activate(detection.kfRect)
                         self.rect = detection.rect
-                        self.status = .active
                         wasKfActivated = true
                     }
                     self.status = .active
+                    
+                    var minDist: Float = 0.4
+                    
+                    for (name, emb) in ASD.Faces.faces {
+                        let dist = 1 - vDSP.dot(emb, self.embedding)
+                        if dist < minDist {
+                            self.name = name
+                            minDist = dist
+                        }
+                    }
                 }
             } else {
                 self.hits = 0
@@ -241,7 +259,7 @@ extension ASD.Tracking {
             } else if wasKfActivated == false {
                 // update state
                 self.kalmanFilter.update(measurement: detection.kfRect)
-                self.rect = self.cameraTransformer.toTrackCoordinates(self.kalmanFilter.rect)
+                self.rect = detection.rect // self.cameraTransformer.toTrackCoordinates(self.kalmanFilter.rect)
             }
             //print("\(self.shortString): valid = \(self.kalmanFilter.isValid), kf rect = \(self.kalmanFilter.rect), rect = \(self.rect), detection: \(detection.rect)")
             
@@ -271,6 +289,7 @@ extension ASD.Tracking {
                     self.status = .inactive
                     self.kalmanFilter.deactivate()
                     self.hits = 0
+//                    print("\(self.id): \(self.embedding)")
                 } else {
                     self.kalmanFilter.xVelocity *= TrackingConfiguration.velocityDamping
                     self.kalmanFilter.yVelocity *= TrackingConfiguration.velocityDamping
@@ -326,6 +345,11 @@ extension ASD.Tracking {
             return self.kalmanFilter.velocityCost(to: detection.kfRect)
         }
         
+        @inline(__always)
+        func mahaCost(for detection: Detection) -> Float {
+            return sqrt(self.kalmanFilter.mahalanobisDistance(to: detection.kfRect))
+        }
+
         func hash(into hasher: inout Hasher) {
             hasher.combine(id)
         }
@@ -336,6 +360,7 @@ extension ASD.Tracking {
         func updateEmbedding(detection: Detection, appearanceCost: Float) {
             // confidence cutoff
             let conf = detection.confidence
+                               
             let minConf = TrackingConfiguration.embeddingConfidenceThreshold
             if conf < minConf {
                 return

@@ -30,19 +30,20 @@ extension ASD {
             var scoreClass: (ScoreClass, Float) {
                 (isActive
                  ? (.active, probability)
-                 : (.inactive, 1-probability))
+                 : (.inactive, 1 - probability))
             }
             
             var probability: Float { 1.0 / (1.0 + exp(-cumulativeScore)) } /// sigmoid probability using cumulative score.
             var isActive: Bool { cumulativeScore > 0 } /// whether the score is greater than 0
             
             mutating func update(with score: Float) {
-                cumulativeScore = score
+                cumulativeScore += score
                 updates += 1
             }
             
             mutating func reset(to score: Float = 0) {
-                (cumulativeScore, updates) = (score, 1)
+                cumulativeScore = score
+                updates = 1
             }
         }
         
@@ -55,6 +56,10 @@ extension ASD {
         
         var count: Int { self.bufferSize }
         var data: SendableState { .init(buffer: self.buffer, writeIndex: self.writeIndex) }
+        var orderedData: ArraySlice<Score> { self.buffer[self.writeIndex...] + self.buffer[..<self.writeIndex] }
+        var orderedScores: [Float] { self.orderedData.map(\.score) }
+        var orderedCumulativeScores: [Float] { self.orderedData.map(\.cumulativeScore) }
+        var orderedProbabilities: [Float] { self.orderedData.map(\.probability) }
         
         private var buffer: ContiguousArray<Score>
         private var writeIndex: Int
@@ -102,7 +107,6 @@ extension ASD {
         ///   - offset how many indices to skip
         public func write(from source: [Float], count numNew: Int) {
             var i = Utils.mod(self.writeIndex + numNew - source.count, self.bufferSize)
-            
             for score in source[0..<source.count-numNew] {
                 self.buffer[i].update(with: score)
                 Utils.advance_index(&i, by: 1, modulo: self.bufferSize)
@@ -115,6 +119,10 @@ extension ASD {
         
         public func read(at index: Int) -> Float {
             return self.buffer[self.wrapIndex(index)].score
+        }
+        
+        public func readProbability(at index: Int) -> Float {
+            return self.buffer[self.wrapIndex(index)].probability
         }
         
         // MARK: private helpers

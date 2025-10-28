@@ -10,7 +10,6 @@ import OrderedCollections
 import CoreMedia
 import ImageIO
 import LANumerics
-import CoreML
 
 
 extension ASD.Tracking {
@@ -157,7 +156,7 @@ extension ASD.Tracking {
         
         @inline(__always)
         private func meetsAppearanceCostCutoff(_ cutoff: Float) -> ((_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool) {
-            return {(_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool in
+            return { (_ track: Track, _ detection: Detection, _ costs: Costs) -> Bool in
                 costs.appearance = track.cosineDistance(to: detection)
                 return costs.appearance <= cutoff
             }
@@ -169,6 +168,10 @@ extension ASD.Tracking {
             if costs.iou < TrackingConfiguration.minIou {
                 return false
             }
+//            costs.mahaDist = track.mahaCost(for: detection)
+//            if costs.mahaDist > TrackingConfiguration.maxMahaCost {
+//                return false
+//            }
             costs.confidence = track.confidenceCost(for: detection)
             costs.ocm = track.velocityCost(for: detection)
             return true

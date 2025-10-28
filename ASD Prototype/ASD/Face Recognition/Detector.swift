@@ -7,11 +7,10 @@
 
 import Foundation
 import Vision
-import CoreML
+@preconcurrency import CoreML
 import ImageIO
 import Accelerate
-import Metal
-import MetalPerformanceShaders
+
 
 extension ASD.Tracking {
     final class FaceDetector {

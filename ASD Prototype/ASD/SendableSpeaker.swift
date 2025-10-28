@@ -19,16 +19,25 @@ extension ASD {
         Equatable
     {
         let id: UUID
+        let name: String?
         let rect: CGRect
         let costString: String
         let status: Tracking.Track.Status
         let misses: Int
         let score: Float
+        let landmarks: [CGPoint]
+        var probability: Float { 1.0 / (1.0 + exp(-self.score)) }
+        var isSpeaking: Bool { return self.score > 0 }
+        var string: String {
+            " \(self.name ?? String(id.uuidString.prefix(4))) \(self.isSpeaking ? "is speaking " : " ")" +
+            "\nP = \(String(format: "%.2f", probability))"
+        }
         
-        var string: String { "ID: \(id.uuidString.prefix(4))\n\(self.costString)" } //\nScore: \(score)" }
         
         init(track: Tracking.SendableTrack, score: Float, mirrored: Bool, rect: CGRect? = nil) {
             self.id = track.id
+            self.name = track.name
+            self.landmarks = track.landmarks
             let rect = rect ?? track.rect
             if mirrored {
                 self.rect = rect

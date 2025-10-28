@@ -13,6 +13,7 @@ extension ASD.Tracking {
         var ocm: Float
         var confidence: Float
         var appearance: Float
+        var mahaDist: Float
         var total: Float {
             -self.iou                                                 +
              self.appearance * TrackingConfiguration.appearanceWeight +
@@ -36,14 +37,16 @@ extension ASD.Tracking {
         }
         
         public init(iou: Float = 0,
-             confidence: Float = 0,
-             ocm: Float = 0,
-             appearance: Float = 0)
+                    confidence: Float = 0,
+                    ocm: Float = 0,
+                    appearance: Float = 0,
+                    mahaDist: Float = 0)
         {
             self.iou = iou
             self.ocm = ocm
             self.confidence = confidence
             self.appearance = appearance
+            self.mahaDist = mahaDist
         }
     }
 }

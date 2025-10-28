@@ -6,7 +6,7 @@
 //
 
 import Vision
-import CoreML
+@preconcurrency import CoreML
 import Foundation
 import OrderedCollections
 

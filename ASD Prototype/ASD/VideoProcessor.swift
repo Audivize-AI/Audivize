@@ -22,26 +22,34 @@ extension ASD {
             let scoreBuffer: ScoreBuffer
             var track: Tracking.SendableTrack
             var lastUpdateTime: Double
+            var timeLastSaved: Double = 0
             
             init(atTime time: Double, track: Tracking.SendableTrack) {
                 self.lastUpdateTime = time
                 self.track = track
                 self.videoBuffer = .init()
                 self.scoreBuffer = .init(capacity: ASDConfiguration.scoreBufferCapacity)
+                self.timeLastSaved = time
             }
             
             mutating func updateVideoAndGetLastScore(atTime time: Double, from pixelBuffer: CVPixelBuffer, with track: Tracking.SendableTrack, skip: Bool) -> Float {
                 self.videoBuffer.write(from: pixelBuffer, croppedTo: track.rect, skip: skip)
                 self.track = track
                 self.lastUpdateTime = time
-                return self.scoreBuffer[-1]
+                return self.scoreBuffer.read(at: -1)
             }
             
             mutating func updateTrackAndGetFrames(atTime time: Double, from pixelBuffer: CVPixelBuffer, with track: Tracking.SendableTrack, skip: Bool) -> MLMultiArray {
                 self.videoBuffer.write(from: pixelBuffer, croppedTo: track.rect, skip: skip)
                 self.track = track
                 self.lastUpdateTime = time
-                return self.videoBuffer.read(at: -1)
+                let frames = self.videoBuffer.read(at: -1)
+//                if time - self.timeLastSaved >= 1.95 {
+//                    print("saving")
+//                    Utils.ML.saveMultiArrayAsGIF(frames, to: "\(self.track.id.uuidString.prefix(4)) (\(time)).gif")
+//                    self.timeLastSaved = time
+//                }
+                return frames
             }
         }
         
@@ -113,19 +121,20 @@ extension ASD {
             
             for (id, score) in scores {
                 if let videoTrack = self.videoTracks[id] {
-                    videoTrack.scoreBuffer.write(from: score, count: 5)
+                    videoTrack.scoreBuffer.write(from: score, count: Int(ASDConfiguration.framesPerUpdate))
+//                    print("S = \(videoTrack.scoreBuffer.orderedCumulativeScores)")
                     speakers.append(.init(track: videoTrack.track,
-                                        score: videoTrack.scoreBuffer[-2],
-                                        mirrored: orientation.isMirrored))
+                                          score: videoTrack.scoreBuffer.read(at: -1), // Int(ASDConfiguration.framesPerUpdate)),
+                                          mirrored: orientation.isMirrored))
                 }
             }
             
-            self.scoreTimestamps.write(atTime: time, count: 5)
+            self.scoreTimestamps.write(atTime: time, count: Int(ASDConfiguration.framesPerUpdate))
             
             return (speakers: speakers, scores: self.timestampedScoreData)
         }
         
-        // MARK: Getter methods
+        // MARK: Getter methods 
         public func getScores(atTime time: Double?) -> [UUID : Float] {
             let index = self.scoreTimestamps.indexOf(time ?? self.lastScoreTime)
             return Dictionary(uniqueKeysWithValues: self.videoTracks.map { id, speaker in

@@ -89,9 +89,6 @@ class DrawingView: UIView {
         super.draw(rect)
         
         guard let context = UIGraphicsGetCurrentContext() else { return }
-        let blackoutRect = CGRect(x: 0, y: 0, width: self.bounds.width, height: self.bounds.height)
-        
-        var cutout = CGPath(rect: CGRect.zero, transform: nil)
         
         context.setLineWidth(3)
         
@@ -104,17 +101,20 @@ class DrawingView: UIView {
         var captions: [Caption] = []
         
         for face in faces {
+            let hue = CGFloat(face.id.hueFromUUID())/360
+            let color = UIColor.init(hue: hue, saturation: (hue < 0.56 || hue > 0.83 ? 1 : 0.5), brightness: 1, alpha: 1)
             if face.status == .active {
+                context.setStrokeColor(color.cgColor)
                 if face.misses > 0 {
-                    context.setStrokeColor(UIColor.yellow.cgColor)
+                    context.setLineDash(phase: 0, lengths: [5, 5])
                 } else {
-                    context.setStrokeColor(UIColor.green.cgColor)
+                    context.setLineDash(phase: 0, lengths: [])
                 }
             } else {
-                context.setStrokeColor(UIColor.orange.cgColor)
+                context.setStrokeColor(UIColor.gray.cgColor)
             }
             
-            if face.score > 0 {
+            if face.score > ASD.ASDConfiguration.speakingThreshold {
                 context.setLineWidth(10)
             } else {
                 context.setLineWidth(3)
@@ -123,42 +123,47 @@ class DrawingView: UIView {
             // print("\(Date().timeIntervalSince1970 - self.startTime),\(box.midX),\(box.midY),\(box.width * box.height),\(box.width / box.height)")
             // Here, self.bounds is the frame of this view, which is sized to match the preview layer.
             
-            
-            // Flip the Y-coordinate because Vision's origin is bottom-left, and UIKit's is top-left.
 
-            let flippedRect = CGRect(
+            let faceRect = CGRect(
                 x: drawRect.origin.x + box.minX * scale.width,
                 y: drawRect.origin.y + box.minY * scale.height,
                 width: box.width * scale.width,
                 height: box.height * scale.height
             )
             
-            context.stroke(flippedRect)
+            context.stroke(faceRect)
+            
+            for landmark in face.landmarks {
+                let w: CGFloat = 5
+                let h: CGFloat = 5
+                let pointRect = CGRect(
+                    x: drawRect.maxX - landmark.x / CaptureConfiguration.videoWidth * scale.width - w / 2,
+                    y: drawRect.maxY - landmark.y / CaptureConfiguration.videoHeight * scale.height - h / 2,
+                    width: w,
+                    height: h
+                )
+                context.setFillColor(color.cgColor)
+                context.fillEllipse(in: pointRect)
+            }
             
             // write the ID above the rectangle
             let idText = face.string as NSString
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 24),
-                .foregroundColor: UIColor.white,
-                .backgroundColor: UIColor.black
+                .font: UIFont.monospacedSystemFont(ofSize: 24, weight: .regular),
+                .foregroundColor: color.cgColor,
+                .backgroundColor: UIColor.black.withAlphaComponent(0.5)
             ]
 
             let textSize = idText.size(withAttributes: attributes)
             let textOrigin = CGPoint(
-                x: flippedRect.origin.x,
-                y: flippedRect.origin.y - textSize.height - 2 // small gap above box
+                x: faceRect.origin.x + (faceRect.width - textSize.width) / 2,
+                y: faceRect.origin.y - textSize.height - 20 // small gap above box
             )
             captions.append(.init(text: idText, position: textOrigin, attributes: attributes))
             
-            let rectPath = CGPath(rect: flippedRect, transform: nil)
-            cutout = cutout.union(rectPath)
         }
         
-        let blackoutPath = CGPath(rect: blackoutRect, transform: nil).subtracting(cutout)
-        context.addPath(blackoutPath)
-        context.setFillColor(UIColor.black.cgColor)
         context.setBlendMode(.normal)
-        //context.drawPath(using: .eoFill)
         
         for caption in captions {
             caption.text.draw(at: caption.position, withAttributes: caption.attributes)

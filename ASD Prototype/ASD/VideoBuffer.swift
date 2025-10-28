@@ -30,13 +30,19 @@ extension ASD {
             super.init(
                 chunkShape: [Int(frameSize.width), Int(frameSize.height)],
                 defaultChunk: .init(repeating: 110, count: Int(frameSize.width * frameSize.height)),
-                length: ASDConfiguration.videoLength,
+                length: ASDConfiguration.ASDModel.videoLength,
                 frontPadding: ASDConfiguration.videoBufferFrontPadding,
                 backPadding: ASDConfiguration.videoBufferBackPadding
             )
         }
         
         public func write(from pixelBuffer: CVPixelBuffer, croppedTo rect: CGRect, skip: Bool = false) {
+            guard rect != .infinite,
+                  rect.width.isNaN == false, rect.height.isNaN == false,
+                  rect.width != 0 && rect.height != 0 else {
+                return
+            }
+            
             self.cropRect = self.computeCropRect(pixelBuffer: pixelBuffer, rect: rect)
             if skip == false {
                 let _ = self.withUnsafeWritingPointer {
@@ -137,7 +143,7 @@ extension ASD {
                                            rowBytes:   cropStride)
             
             // Pad color in BGRA memory layout → we’ll permute later anyway
-            var padColor: [UInt8] = [110, 110, 110, 255]
+            var padColor: UInt32 = 0xFF6E6E6E
             let fillErr = vImageBufferFill_ARGB8888(&cropBuffer,
                                                     &padColor,
                                                     vImage_Flags(kvImageNoFlags))
@@ -242,7 +248,7 @@ extension ASD {
             err = vImageConvert_Planar8toPlanarF(&gray8Buffer,
                                                  &grayFBuffer,
                                                  5.92417061611,  // scale
-                                                 -2.46504739336,    // bias
+                                                 -2.46504739336, // bias
                                                  vImage_Flags(kvImageNoFlags))
             guard err == kvImageNoError else {
                 throw ImageProcessingError.convertFailed(err)

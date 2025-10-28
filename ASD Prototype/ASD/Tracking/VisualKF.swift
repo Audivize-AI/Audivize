@@ -173,7 +173,7 @@ extension ASD.Tracking {
                 H: Matrix(rows: 4, columns: 7, diagonal: [Float](repeating: 1, count: 4)),
                 Q: Matrix<Float>.eye(7),
                 R: Matrix<Float>.eye(4),
-                P0: Matrix(diagonal: [1, 1, 1, 1, 0.01, 0.01, 0.001])
+                P0: Matrix<Float>(rows: PConfiguration.P0) * Matrix<Float>(diagonal: .init(repeating: 1/Float(observation.height), count: 7))
             )
             
             self.lastObservedState = self.x
@@ -283,7 +283,8 @@ extension ASD.Tracking {
             self.growthRate = 0
             self.xVelocity = 0
             self.yVelocity = 0
-            self.P = Matrix<Float>.init(diagonal: [1, 1, 1, 1, 0.01, 0.01, 0.001])
+            let h = Float(rect.height)
+            self.P = Matrix(rows: PConfiguration.P0) * Matrix<Float>(diagonal: .init(repeating: 1/h, count: 7))
             
             self.lastObservedState = self.x
             self.lastObservedCovariance = self.P
@@ -318,6 +319,25 @@ extension ASD.Tracking {
                                   to: Float.pi))
         }
         
+        public func mahalanobisDistance(to rect: CGRect) -> Float {
+            guard rect.height != 0,
+                  x[3].isNaN == false
+            else {
+                return .nan
+            }
+            
+            let S = H * P * H.transpose + R
+            guard let inv = S.inverse else {
+                return .nan
+            }
+            
+            let z = VisualKF.rectToSIMD4(rect)
+            let zPred = SIMD4<Float>(x: x[0], y: x[1], z: x[2], w: x[3])
+            let y = Matrix(z - zPred)
+            let d = y.transpose * inv * y
+            return d[0]
+        }
+        
         // MARK: private static helpers
         private static func rectToVector(_ rect: CGRect) -> [Float] {
             return [
@@ -347,9 +367,10 @@ extension ASD.Tracking {
         
         @inline(__always)
         private func recomputeR(from measurement: SIMD4<Float>) {
-            let xx = RConfiguration.covXX * self.height
-            let AA = RConfiguration.covAA * self.height
-            let rr = RConfiguration.covRR * self.height
+            let w2 = self.width * self.width
+            let xx = RConfiguration.covXX * w2
+            let AA = RConfiguration.covAA * w2 * w2
+            let rr = RConfiguration.covRR * w2
             self.R[0, 0] = xx
             self.R[1, 1] = xx
             self.R[2, 2] = AA
@@ -358,13 +379,15 @@ extension ASD.Tracking {
         
         @inline(__always)
         private func recomputeQ() {
-            let xx = QConfiguration.covXX * self.height
-            let AA = QConfiguration.covAA * self.height
-            let rr = QConfiguration.covRR * self.height
-            let vv = QConfiguration.covVV * self.height
-            let vAvA = QConfiguration.covVAVA * self.height
-            let xv = QConfiguration.covXV * self.height
-            let AvA = QConfiguration.covAVA * self.height
+            let w2 = self.width * self.width
+            let w4 = w2 * w2
+            let xx = QConfiguration.covXX * w2
+            let AA = QConfiguration.covAA * w4
+            let rr = QConfiguration.covRR * w2
+            let vv = QConfiguration.covVV * w2
+            let vAvA = QConfiguration.covVAVA * w4
+            let xv = QConfiguration.covXV * w2
+            let AvA = QConfiguration.covAVA * w4
             self.Q[0, 0] = xx
             self.Q[1, 1] = xx
             self.Q[2, 2] = AA

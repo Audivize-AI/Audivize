@@ -39,7 +39,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		D8BB08992DFB764F0058444C /* ASD Prototype.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ASD Prototype.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D8BB08992DFB764F0058444C /* Audivize.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Audivize.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8BB08A82DFB76510058444C /* ASD PrototypeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ASD PrototypeTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8BB08B22DFB76510058444C /* ASD PrototypeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ASD PrototypeUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -118,7 +118,7 @@
 		D8BB089A2DFB764F0058444C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				D8BB08992DFB764F0058444C /* ASD Prototype.app */,
+				D8BB08992DFB764F0058444C /* Audivize.app */,
 				D8BB08A82DFB76510058444C /* ASD PrototypeTests.xctest */,
 				D8BB08B22DFB76510058444C /* ASD PrototypeUITests.xctest */,
 			);
@@ -128,9 +128,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		D8BB08982DFB764F0058444C /* ASD Prototype */ = {
+		D8BB08982DFB764F0058444C /* Audivize */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D8BB08BC2DFB76510058444C /* Build configuration list for PBXNativeTarget "ASD Prototype" */;
+			buildConfigurationList = D8BB08BC2DFB76510058444C /* Build configuration list for PBXNativeTarget "Audivize" */;
 			buildPhases = (
 				D8BB08952DFB764F0058444C /* Sources */,
 				D8BB08962DFB764F0058444C /* Frameworks */,
@@ -144,7 +144,7 @@
 				D8BB089B2DFB764F0058444C /* ASD Prototype */,
 				D8FFC72E2E04C9CE00F234F0 /* Models */,
 			);
-			name = "ASD Prototype";
+			name = Audivize;
 			packageProductDependencies = (
 				D8BB08DB2DFBA33D0058444C /* LANumerics */,
 				D8FFC73A2E04E46E00F234F0 /* SwiftNP */,
@@ -160,7 +160,7 @@
 				D861B7B02E37EFFE00E3F611 /* Atomics */,
 			);
 			productName = "ASD Prototype";
-			productReference = D8BB08992DFB764F0058444C /* ASD Prototype.app */;
+			productReference = D8BB08992DFB764F0058444C /* Audivize.app */;
 			productType = "com.apple.product-type.application";
 		};
 		D8BB08A72DFB76510058444C /* ASD PrototypeTests */ = {
@@ -233,7 +233,7 @@
 					};
 				};
 			};
-			buildConfigurationList = D8BB08942DFB764F0058444C /* Build configuration list for PBXProject "ASD Prototype" */;
+			buildConfigurationList = D8BB08942DFB764F0058444C /* Build configuration list for PBXProject "Audivize" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -257,7 +257,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				D8BB08982DFB764F0058444C /* ASD Prototype */,
+				D8BB08982DFB764F0058444C /* Audivize */,
 				D8BB08A72DFB76510058444C /* ASD PrototypeTests */,
 				D8BB08B12DFB76510058444C /* ASD PrototypeUITests */,
 			);
@@ -315,12 +315,12 @@
 /* Begin PBXTargetDependency section */
 		D8BB08AA2DFB76510058444C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = D8BB08982DFB764F0058444C /* ASD Prototype */;
+			target = D8BB08982DFB764F0058444C /* Audivize */;
 			targetProxy = D8BB08A92DFB76510058444C /* PBXContainerItemProxy */;
 		};
 		D8BB08B42DFB76510058444C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = D8BB08982DFB764F0058444C /* ASD Prototype */;
+			target = D8BB08982DFB764F0058444C /* Audivize */;
 			targetProxy = D8BB08B32DFB76510058444C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -379,6 +379,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Audivize;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
@@ -439,6 +440,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Audivize;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				"IPHONEOS_DEPLOYMENT_TARGET[arch=*]" = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
@@ -467,12 +469,15 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/**";
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "\"This app uses the camera to detect faces in real-time.\"";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "\"This App uses the microphone so that it can analyze what you're saying\"";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -509,12 +514,15 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/**";
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "\"This app uses the camera to detect faces in real-time.\"";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "\"This App uses the microphone so that it can analyze what you're saying\"";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -610,7 +618,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D8BB08942DFB764F0058444C /* Build configuration list for PBXProject "ASD Prototype" */ = {
+		D8BB08942DFB764F0058444C /* Build configuration list for PBXProject "Audivize" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D8BB08BA2DFB76510058444C /* Debug */,
@@ -619,7 +627,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D8BB08BC2DFB76510058444C /* Build configuration list for PBXNativeTarget "ASD Prototype" */ = {
+		D8BB08BC2DFB76510058444C /* Build configuration list for PBXNativeTarget "Audivize" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D8BB08BD2DFB76510058444C /* Debug */,

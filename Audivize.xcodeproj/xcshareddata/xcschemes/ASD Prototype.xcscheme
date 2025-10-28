@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D8BB08982DFB764F0058444C"
-               BuildableName = "ASD Prototype.app"
-               BlueprintName = "ASD Prototype"
-               ReferencedContainer = "container:ASD Prototype.xcodeproj">
+               BuildableName = "Audivize.app"
+               BlueprintName = "Audivize"
+               ReferencedContainer = "container:Audivize.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -38,7 +38,7 @@
                BlueprintIdentifier = "D8BB08A72DFB76510058444C"
                BuildableName = "ASD PrototypeTests.xctest"
                BlueprintName = "ASD PrototypeTests"
-               ReferencedContainer = "container:ASD Prototype.xcodeproj">
+               ReferencedContainer = "container:Audivize.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -49,7 +49,7 @@
                BlueprintIdentifier = "D8BB08B12DFB76510058444C"
                BuildableName = "ASD PrototypeUITests.xctest"
                BlueprintName = "ASD PrototypeUITests"
-               ReferencedContainer = "container:ASD Prototype.xcodeproj">
+               ReferencedContainer = "container:Audivize.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -70,9 +70,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D8BB08982DFB764F0058444C"
-            BuildableName = "ASD Prototype.app"
-            BlueprintName = "ASD Prototype"
-            ReferencedContainer = "container:ASD Prototype.xcodeproj">
+            BuildableName = "Audivize.app"
+            BlueprintName = "Audivize"
+            ReferencedContainer = "container:Audivize.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -87,9 +87,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D8BB08982DFB764F0058444C"
-            BuildableName = "ASD Prototype.app"
-            BlueprintName = "ASD Prototype"
-            ReferencedContainer = "container:ASD Prototype.xcodeproj">
+            BuildableName = "Audivize.app"
+            BlueprintName = "Audivize"
+            ReferencedContainer = "container:Audivize.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

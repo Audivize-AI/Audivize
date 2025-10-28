@@ -7,7 +7,7 @@
 
 import Foundation
 import Vision
-import CoreML
+@preconcurrency import CoreML
 import ImageIO
 import Accelerate
 
@@ -60,18 +60,17 @@ extension ASD.Tracking {
                 let transform = FaceEmbedder.computeAlignmentTransform(detection.landmarks)
                 
                 if let alignedImage = FaceEmbedder.warp(image: pixelBuffer, with: transform) {
-                    let input = GhostFaceNetInput(image: alignedImage)
-                    detection.embedding = try? self.embedderModel.prediction(input: input)
+                    detection.embedding = try? self.embedderModel.prediction(image: alignedImage)
                         .embeddingShapedArray.scalars
                     
                     // check if the full face is in frame
                     if detection.embedding == nil { continue }
                     let inverseTransform = transform.inverted()
                     let corners = [
-                        CGPoint(x: 0, y: 0).applying(inverseTransform),
-                        CGPoint(x: 112, y: 0).applying(inverseTransform),
-                        CGPoint(x: 112, y: 112).applying(inverseTransform),
-                        CGPoint(x: 0, y: 112).applying(inverseTransform)
+                        CGPoint(x: 30, y: 0).applying(inverseTransform),
+                        CGPoint(x: 82, y: 0).applying(inverseTransform),
+                        CGPoint(x: 82, y: 112).applying(inverseTransform),
+                        CGPoint(x: 30, y: 112).applying(inverseTransform)
                     ]
                     
                     var minX: CGFloat = .greatestFiniteMagnitude

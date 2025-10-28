@@ -39,3 +39,19 @@ extension Utils {
         return mod(x - a, b - a) + a
     }
 }
+
+
+extension UUID {
+    /// Returns an Int hue in 0..<360 derived from this UUID
+    func hueFromUUID() -> Int {
+        // Use the first 8 bytes of the UUID as a UInt64
+        let u = uuid
+        let bytes: [UInt8] = [u.0, u.1, u.2, u.3, u.4, u.5, u.6, u.7]
+        var value: UInt64 = 0
+        for (i, b) in bytes.enumerated() {
+            value |= UInt64(b) << (8 * i)
+        }
+        // Reduce to 0..<360
+        return Int(value % 360)
+    }
+}

@@ -1,7 +1,6 @@
 import Foundation
 import CoreVideo
 import CoreGraphics
-import CoreML
 
 
 extension ASD.Tracking {
