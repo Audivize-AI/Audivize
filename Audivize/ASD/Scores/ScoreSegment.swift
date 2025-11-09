@@ -20,9 +20,11 @@ extension ASD {
         
         public private(set) var scores: ContiguousArray<Score>  /// Scores
         public private(set) var startIndex: Int                 /// Segment start frame index
+        
         public var endIndex: Int { startIndex + scores.count }  /// Segment end frame index (exclusive)
         public var count: Int { scores.count }                  /// Number of scores in the segment
         public var first: Score? { scores.first }               /// First score in the segment
+        public var isEmpty: Bool { scores.isEmpty }             /// Whether the segment is empty
         
         /// Start timestamp
         public var startTime: TimeInterval {

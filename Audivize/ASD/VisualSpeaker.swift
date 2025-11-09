@@ -27,29 +27,22 @@ extension ASD {
         public private(set) var rect: CGRect                    /// Bounding box
         public private(set) var status: Status                  /// Status
         public private(set) var trackId: UUID?                  /// Current Track ID
-        public private(set) var endTime: TimeInterval           /// Timestamp of last score
-        public private(set) var scores: Deque<Score>            /// Speaker scores
+        public private(set) var scores: ScoreStream             /// Speaker scores
         public private(set) var videoBuffer: VideoBuffer? = nil /// Video Buffer for ASD
         
-        public var videoFrames: MLMultiArray? { videoBuffer?.read(at: -1) }
-        public var hasVideoBuffer: Bool { videoBuffer != nil }
-        public var startTime: TimeInterval { endTime - duration }
-        
-        public var duration: TimeInterval {
-            Double(scores.count - 1) / Double(ASDConfiguration.frameRate)
-        }
+        public var videoFrames: MLMultiArray? { videoBuffer?.read(at: -1) } /// VideoBuffer frames
+        public var startTime: TimeInterval { scores.startTime } /// Timestamp of first score
+        public var endTime: TimeInterval { scores.endTime }     /// Timestamp of last score
+        public var hasVideoBuffer: Bool { videoBuffer != nil }  /// Whether a video buffer is assigned to this speaker
+        public var duration: TimeInterval { scores.duration }   /// Total duration on-camera
         
         public var needsASDUpdate: Bool {
             guard let slot = videoBuffer?.slot else { return false }
             return slot == videoBufferPool.asdSchedulePhase
         }
         
-        public var numFinalizedScores: Int {
-            max(scores.count - ASDConfiguration.ASDModel.videoLength + ASDConfiguration.framesPerUpdate - 1, 0)
-        }
-        
-        private var numUnscoredFrames: Int = 0
         private var videoBufferPool: VideoBufferPool
+        private var asdUpdateQueue: [UUID : Int] /// Update ID -> Frame Index
         
         public init(atTime time: TimeInterval, from track: Tracking.SendableTrack, videoBufferPool: VideoBufferPool) {
             self.id = UUID()
@@ -57,9 +50,9 @@ extension ASD {
             self.embedding = track.embedding
             self.rect = track.rect
             self.status = .pairing
-            self.endTime = time
-            self.scores = []
+            self.scores = .init(atTime: time)
             self.videoBufferPool = videoBufferPool
+            self.asdUpdateQueue = [:]
         }
         
         deinit {
@@ -77,7 +70,7 @@ extension ASD {
         ///   - pixelBuffer: Source pixel buffer
         ///   - track: Track state
         ///   - skip: Whether to skip the frame for framerate reduction
-        public func addFrame(from pixelBuffer: CVPixelBuffer, track: Tracking.SendableTrack, skip: Bool) {
+        public func addFrame(atTime time: TimeInterval, from pixelBuffer: CVPixelBuffer, track: Tracking.SendableTrack, skip: Bool) {
             // ensure the track ID is the same
             guard updateWithTrack(track) else { return }
             
@@ -88,7 +81,7 @@ extension ASD {
             videoBuffer?.write(from: pixelBuffer, croppedTo: track.rect, skip: skip)
             
             if !skip {
-                self.numUnscoredFrames += 1
+                self.scores.registerNewFrame(atTime: time)
             }
         }
         
@@ -116,65 +109,26 @@ extension ASD {
             }
             
             // update scores
-            // NOTE: This behaves as if numUnscoredFrames were incremented by 1 then reset to 0 after the score is added
-            if self.numUnscoredFrames == 0 {
-                self.scores.append(.nan)
-            } else {
-                let blankScores = [Score](repeating: .nan, count: self.numUnscoredFrames+1)
-                self.scores.append(contentsOf: blankScores)
-                self.numUnscoredFrames = 0
-            }
-            
-            self.endTime = time
+            self.scores.registerMissedFrame(atTime: time)
+        }
+        
+        /// Enqueue an ASD update.
+        /// - Returns: ID for the update
+        public func enqueueASDUpdate() -> UUID {
+            let updateID = UUID()
+            self.asdUpdateQueue[updateID] = self.scores.frameIndex
+            return updateID
         }
         
         /// Update ASD scores
         /// - Parameters:
-        ///   - time: Timestamp of ASD inference call
+        ///   - id: ASD update ID
         ///   - logits: ASD prediction logits
-        public func updateScores(atTime time: TimeInterval, with logits: [Float]) {
-            guard time > endTime else {
-                debugPrint("ERROR: VisualSpeaker.updateScores called with a non-increasing time \(time) ≤ \(endTime)")
+        public func updateScores(from id: UUID, with logits: [Float]) throws {
+            guard let frameIndex = asdUpdateQueue.removeValue(forKey: id) else {
                 return
             }
-            
-            let numOverlap = max(min(logits.count - numUnscoredFrames, scores.count), 0)
-            
-            // framerate sanity check
-            let fps = TimeInterval(numUnscoredFrames) / (time - endTime)
-            if fabs(fps - TimeInterval(ASDConfiguration.frameRate)) > 1.0 {
-                debugPrint("WARNING: VisualSpeaker.updateScores called with mismatched framerate: \(fps) != \(ASDConfiguration.frameRate)")
-            }
-            
-            // update old scores
-            let overlapStartIndex = scores.count - numOverlap
-            for i in 0..<numOverlap {
-                scores[overlapStartIndex+i].update(with: logits[i])
-            }
-            
-            // add new scores
-            scores.append(contentsOf: logits[numOverlap...].map{ Score.init($0) })
-            
-            numUnscoredFrames = 0
-            endTime = time
-        }
-        
-        /// Clear finalized scores
-        /// - Returns: The timestamp of the last finalized score and the finalized scores that were removed
-        public func clearFinalizedScores() -> (endTime: TimeInterval, scores: Deque<Score>) {
-            // get finalized scores
-            let numFinalizedScores = numFinalizedScores
-            guard numFinalizedScores > 0 else {
-                return (startTime, Deque([]))
-            }
-            let finalizedScores = Deque(scores.prefix(numFinalizedScores))
-            scores.removeFirst(numFinalizedScores)
-            
-            // get finalized timestamp
-            let durationFinalized = TimeInterval(numFinalizedScores - 1) / TimeInterval(ASDConfiguration.frameRate)
-            let finalizedTime = endTime - durationFinalized
-            
-            return (finalizedTime, finalizedScores)
+            try scores.writeScores(logits, fromFrame: frameIndex)
         }
         
         /// Merge the visual speaker with another one.
@@ -208,40 +162,7 @@ extension ASD {
                 return
             }
             
-            let otherStartIndexInSelf = self.getScoreIndex(forTime: other.startTime)
-            var overlapWithOther = other.getScoreIndex(forTime: self.endTime) + 1
-            
-            if other.hasVideoBuffer {
-                // transfer the video buffer
-                self.videoBuffer = other.videoBuffer
-                other.videoBuffer = nil
-                
-                // Remove all trailing NaN scores from this speaker that overlap with or succeed the other speaker
-                let lastKeptIndex = self.scores.lastIndex(where: \.logit.isFinite) ?? 0
-                let lastIndex = self.scores.count - 1
-                let numCut = min(lastIndex - lastKeptIndex, overlapWithOther)
-                self.scores.removeLast(numCut)
-                overlapWithOther -= numCut
-            } else if videoBufferPool.hasReservation(for: other.id) {
-                // transfer the spot in line for the video buffer
-                videoBufferPool.replaceReservation(for: other.id, with: self.id)
-            }
-            
-            // Add trailing scores
-            var overlappingScores: Slice<Deque<Score>> = other.scores[...]
-            
-            if overlapWithOther < other.scores.count {
-                let addedScores = other.scores.suffix(from: overlapWithOther)
-                self.scores.append(contentsOf: addedScores)
-                overlappingScores = other.scores.prefix(overlapWithOther)
-                
-                self.numUnscoredFrames = other.numUnscoredFrames
-                self.endTime = other.endTime
-            }
-            
-            for (i, score) in overlappingScores.enumerated() {
-                self.scores[i + otherStartIndexInSelf].update(with: score.logit, replaceNan: true)
-            }
+            self.scores.mergeWith(other.scores)
         }
         
         /// Check if this speaker matches an embedding
@@ -269,14 +190,6 @@ extension ASD {
         /// - Returns: `true` if it's a match, `false` if not
         public func isSimilarTo(speaker: VisualSpeaker, threshold: Float = Tracking.TrackingConfiguration.maxAppearanceCost) -> Bool {
             return Utils.ML.cosineDistance(from: speaker.embedding, to: self.embedding) <= threshold
-        }
-        
-        private func getScoreIndex(forTime time: TimeInterval) -> Int {
-            let fps = Double(ASDConfiguration.frameRate)
-            let lastIndex = scores.count - 1
-            let deltaFrames = (endTime - time) * fps
-            let index = lastIndex - Int(round(deltaFrames))
-            return min(max(index, 0), lastIndex)
         }
         
         /// - Returns: `true` if the track is the correct one, `false` if not
