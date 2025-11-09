@@ -36,8 +36,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D8BB08A72DFB76510058444C"
-               BuildableName = "ASD PrototypeTests.xctest"
-               BlueprintName = "ASD PrototypeTests"
+               BuildableName = "AudivizeTests.xctest"
+               BlueprintName = "AudivizeTests"
                ReferencedContainer = "container:Audivize.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -47,8 +47,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D8BB08B12DFB76510058444C"
-               BuildableName = "ASD PrototypeUITests.xctest"
-               BlueprintName = "ASD PrototypeUITests"
+               BuildableName = "AudivizeUITests.xctest"
+               BlueprintName = "AudivizeUITests"
                ReferencedContainer = "container:Audivize.xcodeproj">
             </BuildableReference>
          </TestableReference>
