@@ -4,5 +4,5 @@ import XCTest
 // ASD.ASDScoreBufferTests.swift
 
 final class ScoreStreamTests: XCTestCase {
-
+    
 }

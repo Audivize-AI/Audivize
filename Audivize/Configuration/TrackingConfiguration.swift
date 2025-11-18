@@ -7,7 +7,7 @@
 
 import Foundation
 
-extension ASD.Tracking {
+extension Pairing.Tracking {
     struct TrackingConfiguration {
         // activation, confirmation, and deletion
         static let confirmationThreshold: Int                   = 30

@@ -7,7 +7,7 @@
 
 import Foundation
 
-extension ASD.Tracking.Detection {
+extension Pairing.Tracking.Detection {
     // yaw thresholds
     static let yawThreshold: Float = 0.245
     static let yaw90Threshold: Float = 0.733

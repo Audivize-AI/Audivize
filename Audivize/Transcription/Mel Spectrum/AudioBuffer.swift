@@ -9,7 +9,7 @@ import Foundation
 import Accelerate
 
                     
-extension ASD {
+extension Pairing {
     final class AudioBuffer: Buffer {
         typealias Element = Float32
         

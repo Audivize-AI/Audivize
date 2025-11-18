@@ -5,23 +5,30 @@ import Accelerate
 protocol Buffer: AccelerateBuffer, AccelerateMutableBuffer {}
 
 extension Utils {
-    class MLBuffer: Buffer {
+    class MLBuffer: Buffer, @unchecked Sendable {
         typealias Element = Float32
         
         public let numChunks: Int
         public let chunkSize: Int
+        
         
         public var count: Int {
             return self.windowSize
         }
         
         public var chunkViews: some Sequence<ArraySlice<Float>> {
-            (0..<self.numChunks).lazy.map{ self[$0] }
+            queue.sync {
+                (0..<self.numChunks).lazy.map{ self[$0] }
+            }
         }
         
         public var chunks: some Sequence<Array<Float>> {
-            (0..<self.numChunks).lazy.map{ Array(self[$0]) }
+            queue.sync {
+                (0..<self.numChunks).lazy.map{ Array(self[$0]) }
+            }
         }
+
+        internal let queue: DispatchQueue = DispatchQueue(label: "BufferQueue")
         
         private var buffer: ContiguousArray<Float>
         private var writeIndex: Int
@@ -87,10 +94,12 @@ extension Utils {
         ///   - time the time stamp at which the input what obtained
         ///   - body the closure that uses the pointer
         public func withUnsafeWritingPointer<R>(_ body: (inout UnsafeMutableBufferPointer<Float>) throws -> R) rethrows -> R {
-            self.wrapAround(for: self.chunkSize)
-            let ptr = try self.buffer[self.writeIndex..<(self.writeIndex + self.chunkSize)].withUnsafeMutableBufferPointer(body)
-            self.writeIndex += self.chunkSize
-            return ptr
+            try queue.sync(flags: .barrier) {
+                self.wrapAround(for: self.chunkSize)
+                let ptr = try self.buffer[self.writeIndex..<(self.writeIndex + self.chunkSize)].withUnsafeMutableBufferPointer(body)
+                self.writeIndex += self.chunkSize
+                return ptr
+            }
         }
         
         /// - Parameters:
@@ -100,13 +109,15 @@ extension Utils {
         ///   - body the closure that uses the pointer
         /// - Returns: a mutable buffer pointer
         public func withUnsafeWritingPointer<R>(from startIndex: Int, through endIndex: Int, _ body: (inout UnsafeMutableBufferPointer<Float>) throws -> R) rethrows -> R {
-            let writeSize = (endIndex + 1) * self.chunkSize
-            self.wrapAround(for: writeSize)
-            let upperBound = self.writeIndex + writeSize
-            self.writeIndex = self.writeIndex + startIndex * self.chunkSize
-            let ptr = try self.buffer[self.writeIndex..<upperBound].withUnsafeMutableBufferPointer(body)
-            self.writeIndex = upperBound
-            return ptr
+            try queue.sync(flags: .barrier) {
+                let writeSize = (endIndex + 1) * self.chunkSize
+                self.wrapAround(for: writeSize)
+                let upperBound = self.writeIndex + writeSize
+                self.writeIndex = self.writeIndex + startIndex * self.chunkSize
+                let ptr = try self.buffer[self.writeIndex..<upperBound].withUnsafeMutableBufferPointer(body)
+                self.writeIndex = upperBound
+                return ptr
+            }
         }
         
         /// - Parameters:
@@ -144,28 +155,36 @@ extension Utils {
         
         public subscript(_ chunkIndex: Int) -> ArraySlice<Float> {
             get {
-                let startIdx = self.toBufferIndex(from: chunkIndex)
-                return self.buffer[startIdx..<(startIdx + self.chunkSize)]
+                queue.sync {
+                    let startIdx = self.toBufferIndex(from: chunkIndex)
+                    return self.buffer[startIdx..<(startIdx + self.chunkSize)]
+                }
             }
             
             set {
                 assert(newValue.count == self.chunkSize)
-                memcpy(&self.buffer[self.toBufferIndex(from: chunkIndex)],
-                       newValue.withUnsafeBufferPointer { $0.baseAddress! },
-                       self.chunkSize * MemoryLayout<Float>.stride)
+                return queue.sync(flags: .barrier) {
+                    memcpy(&self.buffer[self.toBufferIndex(from: chunkIndex)],
+                           newValue.withUnsafeBufferPointer { $0.baseAddress! },
+                           self.chunkSize * MemoryLayout<Float>.stride)
+                }
             }
         }
         
         public subscript(_ range: Range<Int>) -> ArraySlice<Float> {
             get {
-                return self.buffer[self.toBufferRange(from: range)]
+                queue.sync {
+                    return self.buffer[self.toBufferRange(from: range)]
+                }
             }
             
             set {
                 assert(range.count * self.chunkSize == newValue.count)
-                memcpy(&self.buffer[self.toBufferIndex(from: range.lowerBound)],
-                       newValue.withUnsafeBufferPointer { $0.baseAddress! },
-                       newValue.count * MemoryLayout<Float>.stride)
+                return queue.sync(flags: .barrier) {
+                    memcpy(&self.buffer[self.toBufferIndex(from: range.lowerBound)],
+                           newValue.withUnsafeBufferPointer { $0.baseAddress! },
+                           newValue.count * MemoryLayout<Float>.stride)
+                }
             }
         }
         
@@ -179,9 +198,11 @@ extension Utils {
         public func transpose(axis1: Int, axis2: Int) -> MLBuffer {
             precondition(axis1 > 0 && axis1 < self.strides.count)
             precondition(axis2 > 0 && axis2 < self.strides.count)
-            swap(&self.strides[axis1], &self.strides[axis2])
-            swap(&self.shape[axis1], &self.shape[axis2])
-            return self
+            return queue.sync(flags: .barrier) {
+                swap(&self.strides[axis1], &self.strides[axis2])
+                swap(&self.shape[axis1], &self.shape[axis2])
+                return self
+            }
         }
         
         /// Write to the buffer
@@ -191,11 +212,13 @@ extension Utils {
         public func write(from source: [Float]) {
             let numChunks = source.count / chunkSize
             assert(numChunks * chunkSize == source.count)
-            self.wrapAround(for: source.count)
-            memcpy(&self.buffer[self.writeIndex],
-                   source.withUnsafeBufferPointer { $0.baseAddress! },
-                   source.count * MemoryLayout<Float>.stride)
-            self.writeIndex += source.count
+            queue.sync(flags: .barrier) {
+                self.wrapAround(for: source.count)
+                memcpy(&self.buffer[self.writeIndex],
+                       source.withUnsafeBufferPointer { $0.baseAddress! },
+                       source.count * MemoryLayout<Float>.stride)
+                self.writeIndex += source.count
+            }
         }
         
         /// Write to the buffer
@@ -206,16 +229,18 @@ extension Utils {
         ///   - source the data source from which to write
         public func write(from startIndex: Int, through endIndex: Int, from source: [Float]) {
             let writeSize = (endIndex + 1) * self.chunkSize
-            self.wrapAround(for: writeSize)
-            let upperBound = self.writeIndex + writeSize
-            self.writeIndex = self.writeIndex + startIndex * self.chunkSize
-            assert(upperBound - writeIndex == source.count)
-            
-            memcpy(&self.buffer[self.writeIndex],
-                   source.withUnsafeBufferPointer { $0.baseAddress! },
-                   source.count * MemoryLayout<Float>.stride)
-            
-            self.writeIndex = upperBound
+            queue.sync(flags: .barrier) {
+                self.wrapAround(for: writeSize)
+                let upperBound = self.writeIndex + writeSize
+                self.writeIndex = self.writeIndex + startIndex * self.chunkSize
+                assert(upperBound - writeIndex == source.count)
+                
+                memcpy(&self.buffer[self.writeIndex],
+                       source.withUnsafeBufferPointer { $0.baseAddress! },
+                       source.count * MemoryLayout<Float>.stride)
+                
+                self.writeIndex = upperBound
+            }
         }
         
         /// Write to the buffer
@@ -253,13 +278,15 @@ extension Utils {
         ///   - index window end index (use negative to read from the back)
         ///   - endIdx window end index
         /// - Returns an MLMultiArray made from the data in the buffer
-        public func read(at index: Int) -> MLMultiArray {
-            return try! MLMultiArray(
-                dataPointer: &self.buffer[self.startIndex + (index + 1) * self.chunkSize],
-                shape: self.shape,
-                dataType: .float32,
-                strides: self.strides
-            )
+        public func read(at index: Int) throws -> MLMultiArray {
+            try queue.sync {
+                return try MLMultiArray(
+                    dataPointer: &self.buffer[self.startIndex + (index + 1) * self.chunkSize],
+                    shape: self.shape,
+                    dataType: .float32,
+                    strides: self.strides
+                )
+            }
         }
         
         /// Read the buffer between two indices
@@ -267,16 +294,18 @@ extension Utils {
         ///   - startIdx window start index (use negative to read from the back)
         ///   - endIdx window end index
         /// - Returns an MLMultiArray made from the data in the buffer
-        public func read(from startIdx: Int, to endIdx: Int) -> MLMultiArray {
-            var shape = self.shape
-            shape[1] = NSNumber(value: endIdx - startIdx)
-            
-            return try! MLMultiArray(
-                dataPointer: &self.buffer[self.toBufferIndex(from: startIdx)],
-                shape: shape,
-                dataType: .float32,
-                strides: self.strides
-            )
+        public func read(from startIdx: Int, to endIdx: Int) throws -> MLMultiArray {
+            try queue.sync {
+                var shape = self.shape
+                shape[1] = NSNumber(value: endIdx - startIdx)
+                
+                return try MLMultiArray(
+                    dataPointer: &self.buffer[self.toBufferIndex(from: startIdx)],
+                    shape: shape,
+                    dataType: .float32,
+                    strides: self.strides
+                )
+            }
         }
         
         /// Read the buffer between two indices
@@ -284,32 +313,34 @@ extension Utils {
         ///   - startIdx window start index (use negative to read from the back)
         ///   - endIdx window end index
         /// - Returns an MLMultiArray made from the data in the buffer
-        public func read(from startIdx: Int, through endIdx: Int) -> MLMultiArray {
-            var shape = self.shape
-            shape[1] = NSNumber(value: endIdx - startIdx + 1)
-            
-            return try! MLMultiArray(
-                dataPointer: &self.buffer[self.toBufferIndex(from: startIdx)],
-                shape: shape,
-                dataType: .float32,
-                strides: self.strides
-            )
+        public func read(from startIdx: Int, through endIdx: Int) throws -> MLMultiArray {
+            try queue.sync {
+                var shape = self.shape
+                shape[1] = NSNumber(value: endIdx - startIdx + 1)
+                
+                return try MLMultiArray(
+                    dataPointer: &self.buffer[self.toBufferIndex(from: startIdx)],
+                    shape: shape,
+                    dataType: .float32,
+                    strides: self.strides
+                )
+            }
         }
         
         /// Read the buffer between two indices
         /// - Parameters:
         ///   - range range from which to read
         /// - Returns an MLMultiArray made from the data in the buffer
-        public func read(fromRange range: Range<Int>) -> MLMultiArray {
-            return self.read(from: range.lowerBound, to: range.upperBound)
+        public func read(fromRange range: Range<Int>) throws -> MLMultiArray {
+            return try self.read(from: range.lowerBound, to: range.upperBound)
         }
         
         /// Read the buffer between two indices
         /// - Parameters:
         ///   - range range from which to read
         /// - Returns an MLMultiArray made from the data in the buffer
-        public func read(fromRange range: ClosedRange<Int>) -> MLMultiArray {
-            return self.read(from: range.lowerBound, through: range.upperBound)
+        public func read(fromRange range: ClosedRange<Int>) throws -> MLMultiArray {
+            return try self.read(from: range.lowerBound, through: range.upperBound)
         }
         
         @inline(__always)

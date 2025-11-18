@@ -9,7 +9,7 @@ import Foundation
 import AVFoundation
 
 
-extension ASD {
+extension Pairing {
     final class AudioFeatureBuffer: Utils.TimestampedMLBuffer {
         private var mfcc: MFCC
         private static let defaultChunk: [Float] = [-36.04365339, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // the result of python_speech_features.mfcc(np.zeros((10000,), float), nfilt=32)

@@ -146,7 +146,7 @@ extension Utils {
         @inline(__always)
         public func read(atTime time: Double) -> MLMultiArray {
             let index = self.getIndex(for: time)
-            return self.read(at: index)
+            return try! self.read(at: index)
         }
         
         /// Read the buffer between two timestamps
@@ -156,8 +156,8 @@ extension Utils {
         /// - Returns an MLMultiArray made from the data in the buffer
         @inline(__always)
         public func read(from startTime: Double, to endTime: Double) -> MLMultiArray {
-            return self.read(from: self.getIndex(for: startTime),
-                             to: self.getIndex(for: endTime))
+            return try! self.read(from: self.getIndex(for: startTime),
+                                  to: self.getIndex(for: endTime))
         }
         
         /// Read the buffer between two timestamps
@@ -167,8 +167,8 @@ extension Utils {
         /// - Returns an MLMultiArray made from the data in the buffer
         @inline(__always)
         public func read(from startTime: Double, through endTime: Double) -> MLMultiArray {
-            return self.read(from: self.getIndex(for: startTime),
-                             through: self.getIndex(for: endTime))
+            return try! self.read(from: self.getIndex(for: startTime),
+                                  through: self.getIndex(for: endTime))
         }
         
         /// Convert timestamp to an index

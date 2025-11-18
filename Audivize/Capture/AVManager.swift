@@ -10,7 +10,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     @Published var captureSession: AVCaptureSession?
     
     // Published properties to update the SwiftUI view
-    @Published public private(set) var detections: [ASD.SendableSpeaker] = []
+    @Published public private(set) var detections: [Pairing.ASD.SendableVisualSpeaker] = []
     @Published public private(set) var previewLayer: AVCaptureVideoPreviewLayer
     
     // AVFoundation properties
@@ -21,8 +21,8 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
     private let sessionQueue = DispatchQueue(label: "com.facedetector.sessionQueue")
     
     // Vision and Core ML properties
-    private var asd: ASD.ASD?
-    private var diarizer: Diarizer?
+    private var pairingEngine: Pairing.PairingEngine?
+    private var diarizer: Voice.Diarizer?
         
     init(cameraAngle: CGFloat = 0.0) {
         self.previewLayer = .init()
@@ -39,7 +39,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         if output is AVCaptureVideoDataOutput {
             do {
 //                print("video")
-                try self.asd?.update(
+                try self.pairingEngine?.update(
                     videoSample: sampleBuffer,
                     cameraPosition: self.videoCaptureDevice?.position ?? .unspecified,
                     connection: connection
@@ -134,16 +134,20 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         }
         
         let currentTime = CMClockGetTime(session.synchronizationClock!).seconds
-        self.asd = .init(
-            atTime: currentTime,
-            videoSize: CaptureConfiguration.videoSize,
-            cameraAngle: cameraAngle,
-            onTrackComplete: { speakers in
-                Task.detached { @MainActor in
-                    self.detections = speakers
+        do {
+            self.pairingEngine = try .init(
+                atTime: currentTime,
+                videoSize: CaptureConfiguration.videoSize,
+                cameraAngle: cameraAngle,
+                callback: { speakers in
+                    Task.detached { @MainActor in
+                        self.detections = speakers
+                    }
                 }
-            }
-        )
+            )
+        } catch {
+            fatalError("Failed to initialize ASD Manager:\n\(error.localizedDescription)")
+        }
         
         session.startRunning()
         
@@ -151,7 +155,7 @@ class AVManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBuffe
         
         Task { @MainActor in
             do {
-                self.diarizer = try await Diarizer(atTime: currentTime, updatesPerSecond: 3)
+                self.diarizer = try await .init(atTime: currentTime, updatesPerSecond: 3)
             } catch {
                 print("Failed to initialize the diarizer: \(error)")
             }

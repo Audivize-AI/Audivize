@@ -9,7 +9,7 @@ import Foundation
 @preconcurrency import AVFoundation
 @preconcurrency import CoreML
 
-extension ASD {
+extension Pairing {
     final actor AudioEncoder {
         public var lastWriteTime: Double { self.audioFeatures.lastWriteTime }
         

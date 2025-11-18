@@ -13,7 +13,7 @@ import AVFoundation
 // than SwiftUI for this use case because its coordinate system is
 // directly tied to the camera preview layer's frame.
 class DrawingView: UIView {
-    var faces: [ASD.SendableSpeaker] = [] {
+    var faces: [Pairing.ASD.SendableVisualSpeaker] = [] {
         // When this property is set, redraw the view.
         didSet {
             // Must be called on the main thread.
@@ -103,18 +103,15 @@ class DrawingView: UIView {
         for face in faces {
             let hue = CGFloat(face.id.hueFromUUID()) / 360
             let color = UIColor.init(hue: hue, saturation: (hue < 0.56 || hue > 0.83 ? 1 : 0.5), brightness: 1, alpha: 1)
-            if face.status == .active {
-                context.setStrokeColor(color.cgColor)
-                if face.misses > 0 {
-                    context.setLineDash(phase: 0, lengths: [10, 10])
-                } else {
-                    context.setLineDash(phase: 0, lengths: [])
-                }
+            
+            context.setStrokeColor(color.cgColor)
+            if face.wasTrackMissed {
+                context.setLineDash(phase: 0, lengths: [10, 10])
             } else {
-                context.setStrokeColor(UIColor.gray.cgColor)
+                context.setLineDash(phase: 0, lengths: [])
             }
             
-            if face.score > ASD.ASDConfiguration.speakingThreshold {
+            if face.scores.last?.isActive ?? false {
                 context.setLineWidth(10)
             } else {
                 context.setLineWidth(3)
@@ -145,7 +142,7 @@ class DrawingView: UIView {
 //            }
             
             // write the ID above the rectangle
-            let idText = face.string as NSString
+            let idText = face.displayString as NSString
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.monospacedSystemFont(ofSize: 24, weight: .regular),
                 .foregroundColor: color.cgColor,

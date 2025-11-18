@@ -10,7 +10,7 @@ import CoreAudio
  Author: James Lyons 2012
  Swift Translation: Gemini 2.5 Pro (for FFT only), o4-mini-high, and Benjamin Lee (optimization)
  */
-extension ASD {
+extension Pairing {
     class MFCC {
         struct Configuration {
             var samplerate: Int?
