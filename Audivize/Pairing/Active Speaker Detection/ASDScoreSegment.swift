@@ -18,13 +18,23 @@ extension Pairing.ASD {
             case intersectionFailedNoIntersection
         }
         
-        public private(set) var scores: ContiguousArray<Score>  /// Scores
-        public private(set) var startIndex: Int                 /// Segment start frame index
+        /// Scores
+        public private(set) var scores: ContiguousArray<Score>
         
-        public var endIndex: Int { startIndex + scores.count }  /// Segment end frame index (exclusive)
-        public var count: Int { scores.count }                  /// Number of scores in the segment
-        public var first: Score? { scores.first }               /// First score in the segment
-        public var isEmpty: Bool { scores.isEmpty }             /// Whether the segment is empty
+        /// Segment start frame index
+        public private(set) var startIndex: Int
+        
+        /// Segment end frame index (i.e., the index after the last element's index)
+        public var endIndex: Int { startIndex + scores.count }
+        
+        /// Number of scores in the segment
+        public var count: Int { scores.count }
+        
+        /// First score in the segment
+        public var first: Score? { scores.first }
+        
+        /// Whether the segment is empty
+        public var isEmpty: Bool { scores.isEmpty }
         
         /// Start timestamp
         public var startTime: TimeInterval {

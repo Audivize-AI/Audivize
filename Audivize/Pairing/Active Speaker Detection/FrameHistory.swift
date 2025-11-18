@@ -8,35 +8,63 @@
 import Foundation
 
 extension Pairing.ASD {
+    // MARK: - FrameHistory
     struct FrameHistory: Sendable, Sequence {
         typealias Element = Bool
         typealias Iterator = BitIterator
         typealias BitMask = UInt64
         
+        // MARK: - static attributes
+        
+        /// Number of frames tracked
         public static let count = ASDConfiguration.ASDModel.videoLength
+        
+        /// Minimum number of consecutive misses to create a new segment instead of sealing the gap
         public static let minGapSize = ASDConfiguration.minSegmentGap
+        
         private static let gapMask: BitMask = (~0 &<< (count - minGapSize)) & mask
         private static let writeMask: BitMask = 1 &<< (count-1)
         private static let mask: BitMask = (1 &<< count) - 1
         private static let padding: Int = BitMask.bitWidth - count
         
+        // MARK: - member attributes
+        
+        /// Frame hit/miss history bitmask
         public var history: BitMask = 0
+        
+        /// Iterator for the indices of all the hit frames
         public var hits: HitIterator { .init(history) }
+        
+        /// Iterator for the indices of the start and end of each "chunks" of consecutive hits
         public var chunks: ChunkIterator { .init(history) }
         
+        /// Number of frames remembered
         public var count: Int { Self.count }
+        
+        /// Number of hits in the last `count` frames
         public var numHits: Int { history.nonzeroBitCount }
+        
+        /// Number of misses in the last `count` frames
         public var numMisses: Int { count - history.nonzeroBitCount }
+        
+        /// Number of consecutive hits
         public var hitStreak: Int { (~history << Self.padding).leadingZeroBitCount }
+        
+        /// Number of consecutive misses
         public var missStreak: Int { history.leadingZeroBitCount - Self.padding }
         
+        /// Whether all frames are misses
         public var isEmpty: Bool { history == 0 }
+        
+        /// Whether all frames are hits
         public var isFull: Bool { history == Self.mask }
         
+        // MARK: - init
         public init(_ mask: BitMask = 0) {
             self.history = mask
         }
         
+        // MARK: - public mutators
         public mutating func registerHit() {
             // Fill end gap if it's sufficiently small
             if (history & Self.writeMask) == 0 && (history & Self.gapMask) != 0 {
@@ -57,6 +85,7 @@ extension Pairing.ASD {
             history = mask
         }
         
+        // MARK: - Sequence
         public func makeIterator() -> BitIterator {
             .init(history)
         }
@@ -64,6 +93,7 @@ extension Pairing.ASD {
     
 }
 
+// MARK: - Iterators
 extension Pairing.ASD.FrameHistory {
     internal struct BitIterator: IteratorProtocol, Sequence {
         typealias Element = Bool
@@ -82,6 +112,7 @@ extension Pairing.ASD.FrameHistory {
         }
     }
     
+    // MARK: - hit iterator
     internal struct HitIterator: IteratorProtocol, Sequence {
         typealias Element = Int
         private var mask: BitMask
@@ -96,8 +127,35 @@ extension Pairing.ASD.FrameHistory {
             defer { mask &= (mask - 1) }
             return mask.trailingZeroBitCount
         }
+        
+        func reversed() -> ReversedHitIterator {
+            return .init(mask)
+        }
     }
     
+    // MARK: - reversed hit iterator
+    internal struct ReversedHitIterator: IteratorProtocol, Sequence {
+        typealias Element = Int
+        private var mask: BitMask
+        
+        init(_ mask: BitMask) {
+            self.mask = mask
+        }
+        
+        /// Get next set bit
+        mutating func next() -> Int? {
+            guard mask != 0 else { return nil }
+            let index = BitMask.bitWidth - mask.leadingZeroBitCount - 1
+            mask ^= 1 << index
+            return index
+        }
+        
+        func reversed() -> HitIterator {
+            return .init(mask)
+        }
+    }
+    
+    // MARK: - chunk iterator
     struct ChunkIterator: IteratorProtocol, Sequence {
         typealias Element = Range<Int>
         private let mask: BitMask
@@ -127,6 +185,7 @@ extension Pairing.ASD.FrameHistory {
         }
     }
 
+    // MARK: - reversed chunk iterator
     internal struct ReversedChunkIterator: IteratorProtocol, Sequence {
         typealias Element = Range<Int>
         private let mask: BitMask

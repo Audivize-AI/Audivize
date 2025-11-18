@@ -11,20 +11,6 @@ import BitCollections
 
 extension Pairing.ASD {
     struct ScoreStream: Sendable {
-        enum ScoreStreamError: Error {
-            case writeFailedOutdatedSegment
-            case writeFailedEndBeforeStart
-            case writeFailedStartNotFound
-            case regressingIndex
-        }
-        
-        enum SegmentInsertionMode {
-            case before
-            case after
-            case found
-            case invalid
-        }
-        
         // MARK: - ScoreStream attributes
         
         /// Score segments
@@ -69,19 +55,14 @@ extension Pairing.ASD {
         /// - Parameters:
         ///   - logits: The score logits to write and the data surrounding the frames
         /// - Throws: `writeFailedOutdatedSegment` if the segment is somehow outdated (this should never happen).
-        public mutating func writeScores(from logits: ASDBuffer.LogitData) throws {
+        public mutating func writeScores(from logits: ASDBuffer.LogitData) {
             // callFrame is the frame index of the last logit
             // first frame = callFrame - numLogits + 1
             let offset = logits.callFrame - ASDConfiguration.ASDModel.videoLength + 1
             
             var segmentIndex: Int = max(0, segments.count - 1)
-            print("WRITING SCORES")
-            for chunk in logits.hitHistory.chunks {
-                print(chunk, terminator: ", ")
-            }
             
             for chunk in logits.hitHistory.chunks.reversed() {
-                print("CHUNK: \(chunk)")
                 let startFrame = chunk.lowerBound + offset
                 let endFrame = chunk.upperBound + offset
                 
@@ -91,14 +72,12 @@ extension Pairing.ASD {
                 
                 if segmentFound {
                     // extend the segment containing the start of the chunk
-                    print("EXTENDING SEGMENT")
                     self.duration -= segments[segmentIndex].duration
                     segments[segmentIndex].extend(with: logits.logits, to: endFrame)
                 } else {
                     // insert a new segment
                     var segment = ScoreSegment(startIndex: startFrame)
                     segment.extend(with: logits.logits, to: endFrame)
-                    print("INSERTING NEW SEGMENT OF LENGTH \(segment.count) (should be \(endFrame-startFrame+1), max \(logits.logits.count))")
                     self.segments.insert(segment, at: segmentIndex)
                 }
                 
@@ -282,11 +261,14 @@ extension Pairing.ASD {
             }
             
             if segments[index].hasFrame(atIndex: frameIndex) {
+                // found segment
                 return (index, true)
             }
             if segments[index].startIndex <= frameIndex {
+                // insert segment after `index`
                 return (index+1, false)
             }
+            // insert segment at `index`
             return (index, false)
         }
         

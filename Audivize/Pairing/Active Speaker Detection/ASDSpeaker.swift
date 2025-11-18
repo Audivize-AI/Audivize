@@ -12,13 +12,18 @@ import CoreML
 
 
 extension Pairing.ASD {
+    // MARK: - VisualSpeaker
+    
     class VisualSpeaker: Identifiable {
         typealias ASDModel = ASDConfiguration.ASDModel
         
         public enum Status {
-            case inactive   /// Inactive
-            case pairing    /// Pairing with a voice
-            case paired     /// Paired with a voice
+            /// Inactive
+            case inactive
+            /// Pairing with a voice
+            case pairing
+            /// Paired with a voice
+            case paired
         }
         
         /// VisualSpeaker ID
@@ -57,12 +62,13 @@ extension Pairing.ASD {
         
         /// Whether this speaker should be deleted
         public var isDeletable: Bool {
-            !isPermanent && numMisses < ASDConfiguration.deletionAge
+            !isPermanent && trackId == nil && !hasASDBuffer
         }
         
         private let asdManager: ASDManager
         private var frameIndex: Int { asdManager.frameIndex }
         
+        // MARK: - inits and deinit
         public init(track: Tracking.SendableTrack, videoManager: ASDManager) {
             self.id = UUID()
             self.name = track.name ?? "Speaker \(id.uuidString.prefix(4))"
@@ -85,6 +91,8 @@ extension Pairing.ASD {
             }
         }
         
+        // MARK: - sendable
+        
         public func getSendable(isMirrored: Bool = false) -> SendableVisualSpeaker {
             .init(id: id,
                   name: name,
@@ -96,6 +104,8 @@ extension Pairing.ASD {
                   wasTrackMissed: wasTrackMissed,
                   isMirrored: isMirrored)
         }
+        
+        // MARK: - register hit/missed frame
         
         /// Add a new frame
         /// - Parameters:
@@ -116,7 +126,7 @@ extension Pairing.ASD {
                                       drop: drop)
             
             while let newLogits = asdBuffer?.popNewLogits() {
-                try scores.writeScores(from: newLogits)
+                scores.writeScores(from: newLogits)
             }
         }
         
@@ -132,7 +142,7 @@ extension Pairing.ASD {
             
             // Update scores
             while let newLogits = asdBuffer?.popNewLogits() {
-                try scores.writeScores(from: newLogits)
+                scores.writeScores(from: newLogits)
             }
             
             // add blank frame
@@ -148,6 +158,8 @@ extension Pairing.ASD {
                 self.asdBuffer = nil
             }
         }
+        
+        // MARK: absorb
         
         /// Merge another visual speaker into this one
         /// - Parameter other: The other `VisualSpeaker`
@@ -173,6 +185,8 @@ extension Pairing.ASD {
              
             self.scores.absorb(other.scores)
         }
+        
+        // MARK: - compare embeddings
         
         /// Check if this speaker matches an embedding
         /// - Parameters:
@@ -201,6 +215,8 @@ extension Pairing.ASD {
             return Utils.ML.cosineDistance(from: speaker.embedding, to: self.embedding) <= threshold
         }
         
+        // MARK: - private helpers
+        
         /// - Returns: `true` if the track is the correct one, `false` if not
         private func updateWithTrack(_ track: Tracking.SendableTrack) -> Bool {
             guard trackId == nil || track.id == self.trackId else {
@@ -218,6 +234,7 @@ extension Pairing.ASD {
         }
     }
     
+    // MARK: - SendableVisualSpeaker
     struct SendableVisualSpeaker: Sendable, Identifiable, Hashable, Equatable {
         let id: UUID
         let name: String
