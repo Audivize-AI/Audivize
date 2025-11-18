@@ -1,3 +1,1 @@
-- Make VisualSpeakers deleteable when their track dies.
-- Make VisualSpeakers register a missed frame when their track misses.
-- 
+
