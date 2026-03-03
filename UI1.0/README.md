@@ -1,6 +1,7 @@
-To run this program you need the following plist requirments:
-GIDClientID = client id
-Privacy - Camera Usage Description = (any string)
+To run this program you need the following plist requirements:
+Add to Plist:
+  -GIDClientID = client id
+  -Privacy - Camera Usage Description = (any string)
 You may need to manually add to the Link Binary With Libraries:
   -GoogleSignIn
   -GoogleSignInSwift
