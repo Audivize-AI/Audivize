@@ -12,37 +12,39 @@ struct HomeView: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        ZStack {
-            // Background
-            (colorScheme == .dark ? Color.black : Color.white)
-                .ignoresSafeArea()
-
-            // Main title
-            Text("Home")
-                .font(.system(size: 48, weight: .bold))
-                .foregroundColor(colorScheme == .dark ? .white : .black)
-
-            // Bottom oval navigation
-            VStack {
-                Spacer()
-                HStack(spacing: 20) {
-                    bottomButton(item: .home)
-                    bottomButton(item: .camera)
-                    bottomButton(item: .profile)
-                    bottomButton(item: .settings)
+        NavigationStack {
+            
+            ZStack {
+                // Background
+                (colorScheme == .dark ? Color.black : Color.white)
+                    .ignoresSafeArea()
+                
+                // Main title
+                Text("Home")
+                    .font(.system(size: 48, weight: .bold))
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                
+                // Bottom oval navigation
+                VStack {
+                    Spacer()
+                    HStack(spacing: 20) {
+                        bottomButton(item: .home)
+                        bottomButton(item: .camera)
+                        bottomButton(item: .profile)
+                        bottomButton(item: .settings)
+                    }
+                    .padding(.vertical, 8)      // less height
+                    .padding(.horizontal, 20)   // side padding
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)  // slightly smaller corner
+                            .fill(colorScheme == .dark ? Color.gray.opacity(0.2) : Color.gray.opacity(0.1))
+                    )
+                    .padding(.bottom, 20)  // less bottom spacing
                 }
-                .padding(.vertical, 8)      // less height
-                .padding(.horizontal, 20)   // side padding
-                .background(
-                    RoundedRectangle(cornerRadius: 25)  // slightly smaller corner
-                        .fill(colorScheme == .dark ? Color.gray.opacity(0.2) : Color.gray.opacity(0.1))
-                )
-                .padding(.bottom, 20)  // less bottom spacing
             }
+            .navigationTitle("Home")
         }
-        .navigationTitle("Home")
     }
-
     // Bottom button
     @ViewBuilder
     func bottomButton(item: SidebarItem) -> some View {
@@ -60,6 +62,7 @@ struct HomeView: View {
             .frame(width: 50, height: 40) // smaller button
         }
         .buttonStyle(PlainButtonStyle())
+        .glassEffect(.clear)
     }
 }
 
