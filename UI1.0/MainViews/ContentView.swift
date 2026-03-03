@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  1
 //
-//  Created by N.B.K. on 2/1/26.
+//  Created by N.B.K. and Sebastian Zimmerman on 2/1/26.
 //
 
 import SwiftUI
@@ -37,7 +37,7 @@ enum SidebarItem: String, Identifiable {
         .home,
         .camera,
         .profile,
-        .settings
+        .settings,
     ]
 }
 
@@ -61,23 +61,21 @@ struct ContentView: View {
                         case .home:
                             BigPageView(title: "Home")
                         case .camera:
-                            BigPageView(title: "Camera")
+                            CameraView()
                         case .profile:
-                            BigPageView(title: "Profile")
+                            ProfileView()
                         case .settings:
                             SettingsView(appTheme: $appTheme)
                         default:
                             BigPageView(title: "Home")
+                            
                         }
                     }
 
                     // Overlay bottom panel only on certain pages
-                    if selection != .camera { // optionally hide on camera
-                        VStack {
-                            Spacer()
-                            BottomPanel(selection: $selection)
-                        }
-                        .ignoresSafeArea(edges: .bottom)
+                    VStack {
+                        Spacer()
+                        BottomPanel(selection: $selection)
                     }
                 }
             }
